@@ -1,10 +1,10 @@
-from setuptools import setup
+import setuptools
 
 
 with open('README.md', 'r') as file:
     long_description = file.read()
 
-setup(
+setuptools.setup(
     name='quantpy',
     version='0.1',
     description='Framework for quantum computations and tomography',
@@ -12,7 +12,7 @@ setup(
     long_description_content_type='text/markdown',
     author='Dmitry Norkin, Anton Bozhedarov',
     author_email='nordmtr@gmail.com',
-    requires=[
+    install_requires=[
         'numpy',
         'scipy',
         'sys'
