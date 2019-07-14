@@ -58,7 +58,7 @@ class Qobj:
         self._bloch = data
 
     def tensordot(self, other):
-        """Return Kronecker product of 2 Qstates."""
+        """Return Kronecker product of 2 Qobj instances."""
         return self.__class__(np.kron(self.matrix, other.matrix))
 
     def is_pure(self):
