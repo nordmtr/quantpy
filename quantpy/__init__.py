@@ -1,3 +1,3 @@
-from .qstate import Qstate
+from .qobj import Qobj
 from .geometry import *
 from .routines import *

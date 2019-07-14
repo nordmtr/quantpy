@@ -35,5 +35,5 @@ def generate_pauli(dim):
 
 
 # def tensordot(A, B):
-#     """Return Kronecker product of 2 Qstates. Copy of `Qstate.tensordot`."""
-#     return Qstate(A).tensordot(B)
+#     """Return Kronecker product of 2 Qstates. Copy of `Qobj.tensordot`."""
+#     return Qobj(A).tensordot(B)

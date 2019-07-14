@@ -4,8 +4,8 @@ from .geometry import product
 from .routines import generate_pauli, density
 
 
-class Qstate:
-    """Basic class for quantum states."""
+class Qobj:
+    """Basic class for quantum objects."""
 
     def __init__(self, data=None, is_ket=False):
         self._types = set()  # Set of types which represent the state
