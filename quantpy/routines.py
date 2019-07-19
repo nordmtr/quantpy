@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as la
 
 
-def density(psi):
+def _density(psi):
     """
     Construct a density matrix of a pure state
     Input:
@@ -11,7 +11,7 @@ def density(psi):
     return np.array(np.matrix(psi, dtype=np.complex128).T @ np.conj(np.matrix(psi, dtype=np.complex128)))
 
 
-def left_inv(A):
+def _left_inv(A):
     """Return left pseudo-inverse matrix."""
     return la.inv(A.T @ A) @ A.T
 

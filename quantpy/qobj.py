@@ -1,7 +1,7 @@
 import numpy as np
 
 from .geometry import product
-from .routines import generate_pauli, density
+from .routines import generate_pauli, _density
 
 
 class Qobj:
@@ -10,7 +10,7 @@ class Qobj:
     def __init__(self, data=None, is_ket=False):
         self._types = set()  # Set of types which represent the state
         if is_ket:
-            data = density(data)
+            data = _density(data)
         data = np.array(data)
         if len(data.shape) == 1:
             self._matrix = None
@@ -33,7 +33,7 @@ class Qobj:
             self._matrix = np.zeros((2 ** self.dim, 2 ** self.dim), dtype=np.complex128)
             for i in range(4 ** self.dim):
                 self._matrix += basis[i] * self._bloch[i]
-            self._matrix /= (2 ** self.dim)
+            # self._matrix /= (2 ** self.dim)
         return self._matrix
 
     @matrix.setter
@@ -47,7 +47,9 @@ class Qobj:
         if 'bloch' not in self._types:
             self._types.add('bloch')
             basis = generate_pauli(self.dim)
-            self._bloch = np.array([np.real(product(basis_element, self._matrix)) for basis_element in basis])
+            self._bloch = np.array(
+                [np.real(product(basis_element, self._matrix)) for basis_element in basis]
+            ) / (2 ** self.dim)
         return self._bloch
 
     @bloch.setter
@@ -89,13 +91,13 @@ class Qobj:
         if isinstance(other, (int, float, complex)):
             return self.__class__(self.matrix * other)
         else:
-            raise ValueError('Only multiplication by a scalar is supported')
+            raise ValueError('Only multiplication by a scalar is allowed')
 
     def __truediv__(self, other):
         if isinstance(other, (int, float, complex)):
             return self.__class__(self.matrix / other)
         else:
-            raise ValueError('Only division by a scalar is supported')
+            raise ValueError('Only division by a scalar is allowed')
 
     def __iadd__(self, other):
         self.matrix = self.matrix + other.matrix
