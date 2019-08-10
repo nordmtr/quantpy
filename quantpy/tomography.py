@@ -8,10 +8,10 @@ from .measurements import generate_measurement_matrix
 from .routines import _left_inv
 
 
-# TODO: fix bloch vector
-def _is_feasible(bloch_vector):
+def _is_feasible(bloch_vec):
     """Constraint for minimize function"""
-    return 1 - la.norm(bloch_vector[1:], ord=2)
+    bloch_len = len(bloch_vec) + 1  # 4 ** dim
+    return np.sqrt(bloch_len) - 1 - bloch_len * (la.norm(bloch_vec, ord=2) ** 2)
 
 
 class Tomograph:
@@ -58,8 +58,9 @@ class Tomograph:
     def _point_estimate_lin(self, physical):
         frequencies = self.results / self.results.sum()
         bloch_vec = _left_inv(self.POVM_matrix) @ frequencies / (2 ** self.state.dim)  # norm coef
-        if physical and la.norm(bloch_vec[1:], ord=2) > 1:
-            bloch_vec[1:] /= la.norm(bloch_vec[1:], ord=2)
+        max_norm = np.sqrt((2 ** self.state.dim - 1) / (4 ** self.state.dim))
+        if physical and la.norm(bloch_vec[1:], ord=2) > max_norm:
+            bloch_vec[1:] *= max_norm / la.norm(bloch_vec[1:], ord=2)
         return Qobj(bloch_vec)
 
     def _point_estimate_mle(self, physical=True):
@@ -67,11 +68,13 @@ class Tomograph:
             {'type': 'ineq', 'fun': _is_feasible},
         ]
         # x0 = Qobj(SIGMA_I / 2).bloch
-        x0 = self.point_estimate('lin').bloch
+        x0 = self.point_estimate('lin').bloch[1:]  # first parameter should be constant
         opt_res = minimize(self._likelihood, x0, constraints=constraints, method='SLSQP')
         bloch_vec = opt_res.x
-        if physical and la.norm(bloch_vec, ord=2) > 1:
-            bloch_vec /= la.norm(bloch_vec, ord=2)
+        max_norm = np.sqrt((2 ** self.state.dim - 1) / (4 ** self.state.dim))
+        if physical and la.norm(bloch_vec, ord=2) > max_norm:
+            bloch_vec *= max_norm / la.norm(bloch_vec, ord=2)
+        bloch_vec = np.append(1 / 2 ** self.state.dim, bloch_vec)
         return Qobj(bloch_vec)
 
     def _likelihood(self, bloch_vec, eps=1e-8):
