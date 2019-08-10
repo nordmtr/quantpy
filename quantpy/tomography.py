@@ -9,7 +9,7 @@ from .routines import _left_inv
 
 
 def _is_feasible(bloch_vec):
-    """Constraint for minimize function"""
+    """Positivity constraint for minimize function based on the trace condition"""
     bloch_len = len(bloch_vec) + 1  # 4 ** dim
     return np.sqrt(bloch_len) - 1 - bloch_len * (la.norm(bloch_vec, ord=2) ** 2)
 
