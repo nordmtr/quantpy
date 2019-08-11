@@ -5,19 +5,21 @@ from scipy.optimize import minimize
 from .geometry import hs_dst, if_dst, trace_dst
 from .qobj import Qobj
 from .measurements import generate_measurement_matrix
-from .routines import _left_inv
+from .routines import _left_inv, SIGMA_I
 
 
 def _is_feasible(bloch_vec):
     """Positivity constraint for minimize function based on the trace condition"""
     bloch_len = len(bloch_vec) + 1  # 4 ** dim
-    return np.sqrt(bloch_len) - 1 - bloch_len * (la.norm(bloch_vec, ord=2) ** 2)
+    print('bloch len:', bloch_len)
+    return np.sqrt(bloch_len) - 1 - bloch_len * np.sum(bloch_vec ** 2)
 
 
 class Tomograph:
     """Basic class for QST"""
-    def __init__(self, state, dst='hs'):
+    def __init__(self, state, dst='hs', verbose=False):
         self.state = state
+        self.verbose = verbose
         if isinstance(dst, str):
             if dst == 'hs':
                 self.dst = hs_dst
@@ -67,9 +69,9 @@ class Tomograph:
         constraints = [
             {'type': 'ineq', 'fun': _is_feasible},
         ]
-        # x0 = Qobj(SIGMA_I / 2).bloch
-        x0 = self.point_estimate('lin').bloch[1:]  # first parameter should be constant
-        opt_res = minimize(self._likelihood, x0, constraints=constraints, method='SLSQP')
+        x0 = Qobj(SIGMA_I / 2).bloch[1:]
+        # x0 = self.point_estimate('lin').bloch[1:]  # first parameter should be constant
+        opt_res = minimize(self._neg_log_likelihood, x0, constraints=constraints, method='SLSQP')
         bloch_vec = opt_res.x
         max_norm = np.sqrt((2 ** self.state.dim - 1) / (4 ** self.state.dim))
         if physical and la.norm(bloch_vec, ord=2) > max_norm:
@@ -77,7 +79,10 @@ class Tomograph:
         bloch_vec = np.append(1 / 2 ** self.state.dim, bloch_vec)
         return Qobj(bloch_vec)
 
-    def _likelihood(self, bloch_vec, eps=1e-8):
-        rho = Qobj(bloch_vec)
-        likelihood = 0
-        return -likelihood
+    def _neg_log_likelihood(self, bloch_vec, eps=1e-10):
+        bloch_vec = np.append(1 / 2 ** self.state.dim, bloch_vec)
+        probas = self.POVM_matrix @ bloch_vec * (2 ** self.state.dim)
+        if self.verbose:
+            print('probas', probas)
+        log_likelihood = np.sum(self.results * np.log(probas + eps))
+        return -log_likelihood
