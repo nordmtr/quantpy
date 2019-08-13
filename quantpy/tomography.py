@@ -21,8 +21,9 @@ def _is_unit_trace(tril_vec):
 
 
 def _make_feasible(qobj):
+    EPS = 1e-15
     v, U = la.eigh(qobj.matrix)
-    V = np.diag(np.maximum(0, v))  # positiveness
+    V = np.diag(np.maximum(EPS, v))  # positiveness
     matrix = U @ V @ la.inv(U)
     return Qobj(matrix / np.trace(matrix))
 
@@ -59,17 +60,17 @@ class Tomograph:
             self.results = results
             self.n_measurements = n_measurements
 
-    def point_estimate(self, method='lin', physical=True):
+    def point_estimate(self, method='lin', physical=True, init='mixed'):
         if method == 'lin':
             return self._point_estimate_lin(physical=physical)
         elif method == 'mle-chol':
-            return self._point_estimate_mle_chol()
+            return self._point_estimate_mle_chol(init=init)
         elif method == 'mle-chol-constr':
-            return self._point_estimate_mle_chol_constr()
+            return self._point_estimate_mle_chol_constr(init=init)
         elif method == 'mle-bloch':
             return self._point_estimate_mle_bloch(physical=physical)
         else:
-            raise ValueError('Unknown identifier for argument `method`')
+            raise ValueError('Invalid value for argument `method`')
 
     def bootstrap_state(self, state, n_measurements, n_repeats, method='lin', dst='hs'):
         pass
@@ -82,9 +83,14 @@ class Tomograph:
             rho = _make_feasible(rho)
         return rho
 
-    def _point_estimate_mle_chol(self):
-        fully_mixed_state = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)
-        x0 = _matrix_to_real_tril_vec(fully_mixed_state)
+    def _point_estimate_mle_chol(self, init):
+        if init == 'mixed':
+            x0 = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)  # fully mixed state
+        elif init == 'lin':
+            x0 = self.point_estimate('lin').matrix
+        else:
+            raise ValueError('Invalid value for argument `init`')
+        x0 = _matrix_to_real_tril_vec(x0)
         opt_res = minimize(self._neg_log_likelihood_chol, x0, method='BFGS')
         matrix = _real_tril_vec_to_matrix(opt_res.x)
         return Qobj(matrix / np.trace(matrix))
@@ -97,12 +103,17 @@ class Tomograph:
         log_likelihood = np.sum(self.results * np.log(probas + EPS))
         return -log_likelihood
 
-    def _point_estimate_mle_chol_constr(self):
+    def _point_estimate_mle_chol_constr(self, init):
         constraints = [
             {'type': 'eq', 'fun': _is_unit_trace},
         ]
-        fully_mixed_state = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)
-        x0 = _matrix_to_real_tril_vec(fully_mixed_state)
+        if init == 'mixed':
+            x0 = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)  # fully mixed state
+        elif init == 'lin':
+            x0 = self.point_estimate('lin').matrix
+        else:
+            raise ValueError('Invalid value for argument `init`')
+        x0 = _matrix_to_real_tril_vec(x0)
         opt_res = minimize(self._neg_log_likelihood_chol, x0, constraints=constraints, method='SLSQP')
         matrix = _real_tril_vec_to_matrix(opt_res.x)
         return Qobj(matrix / np.trace(matrix))
