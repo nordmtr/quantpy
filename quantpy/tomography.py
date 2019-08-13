@@ -15,15 +15,22 @@ def _is_positive(bloch_vec):  # works only for 1-qubit systems !!
 
 
 def _is_unit_trace(tril_vec):
+    """Unit trace constraint for minimize function"""
     matrix = _real_tril_vec_to_matrix(tril_vec)
     return np.trace(matrix) - 1
 
 
+def _make_feasible(qobj):
+    v, U = la.eigh(qobj.matrix)
+    V = np.diag(np.maximum(0, v))  # positiveness
+    matrix = U @ V @ la.inv(U)
+    return Qobj(matrix / np.trace(matrix))
+
+
 class Tomograph:
     """Basic class for QST"""
-    def __init__(self, state, dst='hs', verbose=False):
+    def __init__(self, state, dst='hs'):
         self.state = state
-        self.verbose = verbose
         if isinstance(dst, str):
             if dst == 'hs':
                 self.dst = hs_dst
@@ -52,56 +59,55 @@ class Tomograph:
             self.results = results
             self.n_measurements = n_measurements
 
-    def point_estimate(self, method='lin', physical=True, method_mle='SLSQP'):
+    def point_estimate(self, method='lin', physical=True):
         if method == 'lin':
             return self._point_estimate_lin(physical=physical)
-        elif method == 'chol-constr':
-            return self._point_estimate_mle_chol_constr(physical=physical, method=method_mle)
-        elif method == 'chol':
-            return self._point_estimate_mle_chol(physical=physical, method=method_mle)
+        elif method == 'mle-chol':
+            return self._point_estimate_mle_chol()
+        elif method == 'mle-chol-constr':
+            return self._point_estimate_mle_chol_constr()
+        elif method == 'mle-bloch':
+            return self._point_estimate_mle_bloch(physical=physical)
+        else:
+            raise ValueError('Unknown identifier for argument `method`')
 
     def bootstrap_state(self, state, n_measurements, n_repeats, method='lin', dst='hs'):
         pass
 
     def _point_estimate_lin(self, physical):
         frequencies = self.results / self.results.sum()
-        bloch_vec = _left_inv(self.POVM_matrix) @ frequencies / (2 ** self.state.dim)  # norm coef
-        max_norm = np.sqrt((2 ** self.state.dim - 1) / (4 ** self.state.dim))
-        if physical and la.norm(bloch_vec[1:], ord=2) > max_norm:
-            bloch_vec[1:] *= max_norm / la.norm(bloch_vec[1:], ord=2)
+        bloch_vec = _left_inv(self.POVM_matrix) @ frequencies / (2 ** self.state.dim)
+        rho = Qobj(bloch_vec)
+        if physical:
+            rho = _make_feasible(rho)
         return Qobj(bloch_vec)
 
-    def _point_estimate_mle_bloch(self, physical, init, method_mle):
+    def _point_estimate_mle_bloch(self, physical):  # works only for 1-dimensional systems
         constraints = [
             {'type': 'ineq', 'fun': _is_positive},
         ]
-        if init == 'id':
-            x0 = np.zeros(4 ** self.state.dim - 1)
-        elif init == 'lin':
-            x0 = self.point_estimate('lin').bloch[1:]  # first parameter should be constant
-        else:
-            raise ValueError('Unknown identifier for argument `init`')
-        opt_res = minimize(self._neg_log_likelihood_bloch, x0, constraints=constraints, method=method_mle)
-        bloch_vec = opt_res.x
-        max_norm = np.sqrt((2 ** self.state.dim - 1) / (4 ** self.state.dim))
-        if physical and la.norm(bloch_vec, ord=2) > max_norm:
-            bloch_vec *= max_norm / la.norm(bloch_vec, ord=2)
-        bloch_vec = np.append(1 / 2 ** self.state.dim, bloch_vec)
-        return Qobj(bloch_vec)
+        x0 = np.zeros(4 ** self.state.dim - 1)  # fully mixed state
+        opt_res = minimize(self._neg_log_likelihood_bloch, x0, constraints=constraints, method='SLSQP')
+        bloch_vec = np.append(1 / 2 ** self.state.dim, opt_res.x)
+        rho = Qobj(bloch_vec)
+        if physical:
+            rho = self._make_feasible(rho)
+        return rho
 
-    def _point_estimate_mle_chol_constr(self, physical, method):
+    def _point_estimate_mle_chol(self):
+        fully_mixed_state = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)
+        x0 = _matrix_to_real_tril_vec(fully_mixed_state)
+        opt_res = minimize(self._neg_log_likelihood_chol, x0, method='BFGS')
+        matrix = _real_tril_vec_to_matrix(opt_res.x)
+        return Qobj(matrix / np.trace(matrix))
+
+    def _point_estimate_mle_chol_constr(self):
         constraints = [
             {'type': 'eq', 'fun': _is_unit_trace},
         ]
         fully_mixed_state = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)
         x0 = _matrix_to_real_tril_vec(fully_mixed_state)
-        opt_res = minimize(self._neg_log_likelihood_chol, x0, constraints=constraints, method=method)
-        return Qobj(_real_tril_vec_to_matrix(opt_res.x))
-
-    def _point_estimate_mle_chol(self, physical, method):
-        fully_mixed_state = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)
-        x0 = _matrix_to_real_tril_vec(fully_mixed_state)
-        opt_res = minimize(self._neg_log_likelihood_chol, x0, method=method)
+        opt_res = minimize(self._neg_log_likelihood_chol, x0, constraints=constraints, method='SLSQP')
         matrix = _real_tril_vec_to_matrix(opt_res.x)
         return Qobj(matrix / np.trace(matrix))
 

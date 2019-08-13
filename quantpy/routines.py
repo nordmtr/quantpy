@@ -2,6 +2,24 @@ import numpy as np
 import scipy.linalg as la
 
 
+# Pauli basis
+
+SIGMA_I = np.array([[1, 0], [0, 1]], dtype=np.complex128)
+SIGMA_X = np.array([[0, 1], [1, 0]], dtype=np.complex128)
+SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=np.complex128)
+SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=np.complex128)
+
+PAULI_1 = [SIGMA_I, SIGMA_X, SIGMA_Y, SIGMA_Z]
+
+
+def generate_pauli(dim):
+    """Generate basis of Pauli matrices for `dim` qubits."""
+    basis = PAULI_1
+    for _ in range(dim - 1):
+        basis = np.kron(basis, PAULI_1)
+    return basis
+
+
 def _density(psi):
     """
     Construct a density matrix of a pure state
@@ -38,24 +56,6 @@ def _real_tril_vec_to_matrix(vector):
     tril_matrix = np.zeros((matrix_shape, matrix_shape), dtype=np.complex128)
     tril_matrix[np.tril_indices(matrix_shape)] = complex_vector
     return tril_matrix @ tril_matrix.T.conj()
-
-
-# Pauli basis
-
-SIGMA_I = np.array([[1, 0], [0, 1]], dtype=np.complex128)
-SIGMA_X = np.array([[0, 1], [1, 0]], dtype=np.complex128)
-SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=np.complex128)
-SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=np.complex128)
-
-PAULI_1 = [SIGMA_I, SIGMA_X, SIGMA_Y, SIGMA_Z]
-
-
-def generate_pauli(dim):
-    """Generate basis of Pauli matrices for `dim` qubits."""
-    basis = PAULI_1
-    for _ in range(dim - 1):
-        basis = np.kron(basis, PAULI_1)
-    return basis
 
 
 # def tensordot(A, B):
