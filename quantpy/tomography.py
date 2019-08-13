@@ -80,7 +80,39 @@ class Tomograph:
         rho = Qobj(bloch_vec)
         if physical:
             rho = _make_feasible(rho)
-        return Qobj(bloch_vec)
+        return rho
+
+    def _point_estimate_mle_chol(self):
+        fully_mixed_state = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)
+        x0 = _matrix_to_real_tril_vec(fully_mixed_state)
+        opt_res = minimize(self._neg_log_likelihood_chol, x0, method='BFGS')
+        matrix = _real_tril_vec_to_matrix(opt_res.x)
+        return Qobj(matrix / np.trace(matrix))
+
+    def _neg_log_likelihood_chol(self, tril_vec):
+        EPS = 1e-10
+        matrix = _real_tril_vec_to_matrix(tril_vec)
+        rho = Qobj(matrix / np.trace(matrix))
+        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.dim)
+        log_likelihood = np.sum(self.results * np.log(probas + EPS))
+        return -log_likelihood
+
+    def _point_estimate_mle_chol_constr(self):
+        constraints = [
+            {'type': 'eq', 'fun': _is_unit_trace},
+        ]
+        fully_mixed_state = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)
+        x0 = _matrix_to_real_tril_vec(fully_mixed_state)
+        opt_res = minimize(self._neg_log_likelihood_chol, x0, constraints=constraints, method='SLSQP')
+        matrix = _real_tril_vec_to_matrix(opt_res.x)
+        return Qobj(matrix / np.trace(matrix))
+
+    def _neg_log_likelihood_chol_constr(self, tril_vec):
+        EPS = 1e-10
+        rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
+        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.dim)
+        log_likelihood = np.sum(self.results * np.log(probas + EPS))
+        return -log_likelihood
 
     def _point_estimate_mle_bloch(self, physical):  # works only for 1-dimensional systems
         constraints = [
@@ -94,41 +126,9 @@ class Tomograph:
             rho = self._make_feasible(rho)
         return rho
 
-    def _point_estimate_mle_chol(self):
-        fully_mixed_state = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)
-        x0 = _matrix_to_real_tril_vec(fully_mixed_state)
-        opt_res = minimize(self._neg_log_likelihood_chol, x0, method='BFGS')
-        matrix = _real_tril_vec_to_matrix(opt_res.x)
-        return Qobj(matrix / np.trace(matrix))
-
-    def _point_estimate_mle_chol_constr(self):
-        constraints = [
-            {'type': 'eq', 'fun': _is_unit_trace},
-        ]
-        fully_mixed_state = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)
-        x0 = _matrix_to_real_tril_vec(fully_mixed_state)
-        opt_res = minimize(self._neg_log_likelihood_chol, x0, constraints=constraints, method='SLSQP')
-        matrix = _real_tril_vec_to_matrix(opt_res.x)
-        return Qobj(matrix / np.trace(matrix))
-
     def _neg_log_likelihood_bloch(self, bloch_vec):
         EPS = 1e-10
         bloch_vec = np.append(1 / 2 ** self.state.dim, bloch_vec)
         probas = self.POVM_matrix @ bloch_vec * (2 ** self.state.dim)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS))
-        return -log_likelihood
-
-    def _neg_log_likelihood_chol_constr(self, tril_vec):
-        EPS = 1e-10
-        rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
-        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.dim)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS))
-        return -log_likelihood
-
-    def _neg_log_likelihood_chol(self, tril_vec):
-        EPS = 1e-10
-        matrix = _real_tril_vec_to_matrix(tril_vec)
-        rho = Qobj(matrix / np.trace(matrix))
-        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.dim)
         log_likelihood = np.sum(self.results * np.log(probas + EPS))
         return -log_likelihood
