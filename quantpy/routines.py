@@ -16,6 +16,30 @@ def _left_inv(A):
     return la.inv(A.T @ A) @ A.T
 
 
+def _real_to_complex(z):
+    """Real vector of length 2n -> complex of length n"""
+    return z[:len(z)//2] + 1j * z[len(z)//2:]
+
+
+def _complex_to_real(z):
+    """Complex vector of length n -> real of length 2n"""
+    return np.concatenate((np.real(z), np.imag(z)))
+
+
+def _matrix_to_real_tril_vec(matrix):
+    tril_matrix = la.cholesky(matrix, lower=True)
+    complex_tril_vector = tril_matrix[np.tril_indices(tril_matrix.shape[0])]
+    return _complex_to_real(complex_tril_vector)
+
+
+def _real_tril_vec_to_matrix(vector):
+    complex_vector = _real_to_complex(vector)
+    matrix_shape = int(-0.5 + np.sqrt(2 * len(complex_vector) + 0.25))  # solve a quadratic equation for the shape
+    tril_matrix = np.zeros((matrix_shape, matrix_shape), dtype=np.complex128)
+    tril_matrix[np.tril_indices(matrix_shape)] = complex_vector
+    return tril_matrix @ tril_matrix.T.conj()
+
+
 # Pauli basis
 
 SIGMA_I = np.array([[1, 0], [0, 1]], dtype=np.complex128)
