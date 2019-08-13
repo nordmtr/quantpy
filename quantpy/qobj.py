@@ -1,4 +1,6 @@
+import sys
 import numpy as np
+import scipy.linalg as la
 
 from .geometry import product
 from .routines import generate_pauli, _density
@@ -62,6 +64,20 @@ class Qobj:
     def tensordot(self, other):
         """Return Kronecker product of 2 Qobj instances."""
         return self.__class__(np.kron(self.matrix, other.matrix))
+
+    def is_density_matrix(self):
+        herm_flag = np.allclose(self.matrix, self.matrix.T.conj())
+        pos_flag = np.allclose(np.minimum(np.real(la.eigvals(self.matrix)), 0), 0)
+        trace_flag = np.allclose(np.trace(self.matrix), 1)
+        if herm_flag and pos_flag and trace_flag:
+            return True
+        if not herm_flag:
+            print('Non-hermitian', file=sys.stderr)
+        if not pos_flag:
+            print('Non-positive', file=sys.stderr)
+        if not trace_flag:
+            print('Trace is not 1', file=sys.stderr)
+        return False
 
     def is_pure(self):
         return np.linalg.matrix_rank(self.matrix, tol=1e-10, hermitian=True) == 1
