@@ -5,14 +5,14 @@ from scipy.optimize import minimize
 from .geometry import hs_dst, if_dst, trace_dst
 from .qobj import Qobj
 from .measurements import generate_measurement_matrix
-from .routines import _left_inv, SIGMA_I
+from .routines import _left_inv
 
 
 def _is_feasible(bloch_vec):
     """Positivity constraint for minimize function based on the trace condition"""
+    EPS = 1e-12
     bloch_len = len(bloch_vec) + 1  # 4 ** dim
-    print('bloch len:', bloch_len)
-    return np.sqrt(bloch_len) - 1 - bloch_len * np.sum(bloch_vec ** 2)
+    return np.sqrt(bloch_len) - 1 - bloch_len * np.sum(bloch_vec ** 2) + EPS
 
 
 class Tomograph:
@@ -48,11 +48,11 @@ class Tomograph:
             self.results = results
             self.n_measurements = n_measurements
 
-    def point_estimate(self, method='lin', physical=True):
+    def point_estimate(self, method='lin', physical=True, init='id'):
         if method == 'lin':
             return self._point_estimate_lin(physical=physical)
         else:
-            return self._point_estimate_mle(physical=physical)
+            return self._point_estimate_mle(physical=physical, init='id')
 
     def bootstrap_state(self, state, n_measurements, n_repeats, method='lin', dst='hs'):
         pass
@@ -65,12 +65,16 @@ class Tomograph:
             bloch_vec[1:] *= max_norm / la.norm(bloch_vec[1:], ord=2)
         return Qobj(bloch_vec)
 
-    def _point_estimate_mle(self, physical=True):
+    def _point_estimate_mle(self, physical, init):
         constraints = [
             {'type': 'ineq', 'fun': _is_feasible},
         ]
-        x0 = Qobj(SIGMA_I / 2).bloch[1:]
-        # x0 = self.point_estimate('lin').bloch[1:]  # first parameter should be constant
+        if init == 'id':
+            x0 = np.zeros(4 ** self.state.dim - 1)
+        elif init == 'lin':
+            x0 = self.point_estimate('lin').bloch[1:]  # first parameter should be constant
+        else:
+            raise ValueError('Unknown identifier for argument `init`')
         opt_res = minimize(self._neg_log_likelihood, x0, constraints=constraints, method='SLSQP')
         bloch_vec = opt_res.x
         max_norm = np.sqrt((2 ** self.state.dim - 1) / (4 ** self.state.dim))
@@ -83,6 +87,6 @@ class Tomograph:
         bloch_vec = np.append(1 / 2 ** self.state.dim, bloch_vec)
         probas = self.POVM_matrix @ bloch_vec * (2 ** self.state.dim)
         if self.verbose:
-            print('probas', probas)
+            print('probas', np.sum(probas))
         log_likelihood = np.sum(self.results * np.log(probas + eps))
         return -log_likelihood
