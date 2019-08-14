@@ -62,18 +62,36 @@ class Tomograph:
 
     def point_estimate(self, method='lin', physical=True, init='mixed'):
         if method == 'lin':
-            return self._point_estimate_lin(physical=physical)
+            self.reconstructed_state = self._point_estimate_lin(physical=physical)
         elif method == 'mle-chol':
-            return self._point_estimate_mle_chol(init=init)
+            self.reconstructed_state = self._point_estimate_mle_chol(init=init)
         elif method == 'mle-chol-constr':
-            return self._point_estimate_mle_chol_constr(init=init)
+            self.reconstructed_state = self._point_estimate_mle_chol_constr(init=init)
         elif method == 'mle-bloch':
-            return self._point_estimate_mle_bloch(physical=physical)
+            self.reconstructed_state = self._point_estimate_mle_bloch(physical=physical)
         else:
             raise ValueError('Invalid value for argument `method`')
+        return self.reconstructed_state
 
-    def bootstrap_state(self, state, n_measurements, n_repeats, method='lin', dst='hs'):
-        pass
+    def bootstrap(self, n_measurements, n_repeats,
+                  est_method='lin', physical=True, init='mixed', use_new_estimate=False):
+        """
+        Perform quantum tomography with *n_measurements* on reconstructed state from results *n_repeats* times
+        Output:
+            Sorted list of distances between the input state and corresponding estimated matrices
+        """
+        if use_new_estimate:
+            state = self.point_estimate(method=est_method, physical=physical, init=init)
+        else:
+            state = self.reconstructed_state
+        dist = [0]
+        boot_tmg = self.__class__(state, self.dst)
+        for _ in range(n_repeats):
+            boot_tmg.experiment(n_measurements, POVM=self.POVM_matrix)
+            rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init)
+            dist.append(self.dst(rho, state))
+        dist.sort()
+        return dist
 
     def _point_estimate_lin(self, physical):
         frequencies = self.results / self.results.sum()

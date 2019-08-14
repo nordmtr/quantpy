@@ -24,10 +24,17 @@ def generate_measurement_matrix(POVM='proj', dim=1):
         else:
             raise ValueError('Incorrect string shortcut for argument `POVM`')
     elif isinstance(POVM, np.ndarray):
-        POVM_1 = POVM
+        if POVM.shape[1] == 4:
+            POVM_1 = POVM
+        elif POVM.shape[1] == 4 ** dim:
+            POVM_matrix = POVM
+            is_full_POVM = True
+        else:
+            raise ValueError('Incorrect POVM matrix')
     else:
         raise ValueError('Incorrect value for argument `POVM`')
-    POVM_matrix = POVM_1
-    for _ in range(dim - 1):
-        POVM_matrix = np.kron(POVM_matrix, POVM_1)
+    if not is_full_POVM:
+        POVM_matrix = POVM_1
+        for _ in range(dim - 1):
+            POVM_matrix = np.kron(POVM_matrix, POVM_1)
     return POVM_matrix
