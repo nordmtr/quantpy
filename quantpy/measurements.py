@@ -5,6 +5,7 @@ import numpy as np
 
 
 def generate_measurement_matrix(POVM='proj', dim=1):
+    is_full_POVM = False
     if isinstance(POVM, str):
         if POVM == 'proj':
             x_pos = np.array([1, 1, 0, 0])
