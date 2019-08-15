@@ -60,7 +60,7 @@ class Tomograph:
             self.results = results
             self.n_measurements = n_measurements
 
-    def point_estimate(self, method='lin', physical=True, init='mixed'):
+    def point_estimate(self, method='lin', physical=True, init='lin'):
         if method == 'lin':
             self.reconstructed_state = self._point_estimate_lin(physical=physical)
         elif method == 'mle-chol':
@@ -74,7 +74,7 @@ class Tomograph:
         return self.reconstructed_state
 
     def bootstrap(self, n_measurements, n_repeats,
-                  est_method='lin', physical=True, init='mixed', use_new_estimate=False):
+                  est_method='lin', physical=True, init='lin', use_new_estimate=False):
         """
         Perform quantum tomography with *n_measurements* on reconstructed state from results *n_repeats* times
         Output:
@@ -143,7 +143,7 @@ class Tomograph:
         log_likelihood = np.sum(self.results * np.log(probas + EPS))
         return -log_likelihood
 
-    def _point_estimate_mle_bloch(self, physical):  # works only for 1-dimensional systems
+    def _point_estimate_mle_bloch(self, physical):  # works only for 1-qubit systems
         constraints = [
             {'type': 'ineq', 'fun': _is_positive},
         ]
