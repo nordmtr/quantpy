@@ -194,10 +194,11 @@ class Tomograph:
         state : Qobj or None, default=None
             If not None and `use_new_estimate` is True, use it as a state to perform new tomographies on
         """
-        if use_new_estimate and state is None:
-            state = self.point_estimate(method=est_method, physical=physical, init=init)
-        else:
+        if not use_new_estimate:
             state = self.reconstructed_state
+        elif state is None:
+            state = self.point_estimate(method=est_method, physical=physical, init=init)
+
         dist = [0]
         boot_tmg = self.__class__(state, self.dst)
         for _ in range(n_repeats):
