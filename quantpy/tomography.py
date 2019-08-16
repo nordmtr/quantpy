@@ -30,7 +30,48 @@ def _make_feasible(qobj):
 
 
 class Tomograph:
-    """Basic class for QST"""
+    """Basic class for quantum state tomography
+
+    This class supports experiment simulations, different methods of reconstructing a density matrix
+    from the data and building confidence intervals.
+
+    Parameters
+    ----------
+    state : Qobj
+        Quantum object to perform a tomography on
+    dst : str or callable, default='hs'
+        Sets a measure in a space of quantum objects
+
+        Possible strings:
+            'hs' -- Hilbert-Schmidt distance
+            'trace' -- trace distance
+            'if' -- infidelity
+
+        Interface for a custom measure:
+            custom_measure(A: Qobj, B: Qobj) -> float
+
+    Attributes
+    ----------
+    n_measurements : float
+        Total number of measurements made during tomography
+    POVM_matrix : numpy 2-D array
+        Numpy array with shape (*, 4^dim), representing the measurement matrix.
+        Rows are bloch vectors that sum into unity
+    reconstructed_state : Qobj
+        The most recent estimation of a density matrix, if ever performed
+    results : numpy 1-D array
+        Results of the simulated experiment.
+        results[i] is the number of outcomes corresponding to POVM_matrix[i,:]
+
+    Methods
+    -------
+    bootstrap()
+        Perform multiple tomography simulation on the preferred state
+    experiment()
+        Simulate a real quantum state tomography
+    point_estimate()
+        Reconstruct a density matrix from the data obtained in the experiment
+    """
     def __init__(self, state, dst='hs'):
         self.state = state
         if isinstance(dst, str):
@@ -46,6 +87,29 @@ class Tomograph:
             self.dst = dst
 
     def experiment(self, n_measurements, POVM='proj', warm_start=False):
+        """Simulate a real quantum state tomography.
+
+        Parameters
+        ----------
+        n_measurements : int
+            Number of measurements to perform in the tomography
+        POVM : str or numpy 2-D array, default='proj'
+            A single string or a numpy array to construct a POVM matrix.
+
+            Possible strings:
+                'proj' -- orthogonal projective measurement, 6^dim rows
+                'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^dim rows
+
+            Possible numpy arrays:
+                2-D array with shape (*, 4) -- interpreted as POVM matrix for 1 qubit,
+                construct a POVM matrix for the whole system from tensor products of rows of this matrix
+                2-D array with shape (*, 4^dim) -- returns this matrix without any changes
+
+            See :ref:`generate_measurement_matrix` for more detailed documentation
+
+        warm_start : bool, default=False
+            If True, do not overwrite the previous experiment results, add all results to those of the previous run
+        """
         POVM_matrix = generate_measurement_matrix(POVM, self.state.dim)
         probas = POVM_matrix @ self.state.bloch * (2 ** self.state.dim)
         results = np.random.multinomial(n_measurements, probas)
@@ -62,6 +126,36 @@ class Tomograph:
             self.n_measurements = n_measurements
 
     def point_estimate(self, method='lin', physical=True, init='lin'):
+        """Reconstruct a density matrix from the data obtained in the experiment
+
+        Parameters
+        ----------
+        method : str, default='lin'
+            Method of reconstructing the density matrix
+
+            Possible values:
+                'lin' -- linear inversion
+                'mle-chol' -- maximum likelihood estimation with Cholesky parametrization,
+                              unconstrained optimization
+                'mle-chol-constr' -- same as 'mle-chol', but optimization is constrained
+                'mle-bloch' -- maximum likelihood estimation with Bloch parametrization,
+                               constrained optimization (works only for 1-qubit systems)
+
+        physical : bool, default=True (optional)
+            For methods 'lin' and 'mle-chol' reconstructed matrix may not lie in the physical domain.
+            If True, set negative eigenvalues to zeros and divide the matrix by its trace.
+
+        init : str, default='lin' (optional)
+            Methods using maximum likelihood estimation require the starting point for gradient descent.
+
+            Possible values:
+                'lin' -- uses linear inversion point estimate as initial guess
+                'mixed' -- uses fully mixed state as initial guess
+
+        Returns
+        -------
+        reconstructed_state : Qobj
+        """
         if method == 'lin':
             self.reconstructed_state = self._point_estimate_lin(physical=physical)
         elif method == 'mle-chol':
@@ -76,10 +170,29 @@ class Tomograph:
 
     def bootstrap(self, n_measurements, n_repeats,
                   est_method='lin', physical=True, init='lin', use_new_estimate=False, state=None):
-        """
-        Perform quantum tomography with *n_measurements* on reconstructed state from results *n_repeats* times
-        Output:
-            Sorted list of distances between the input state and corresponding estimated matrices
+        """Perform multiple tomography simulation on the preferred state.
+        Count the distances to the bootstrapped states.
+
+        Parameters
+        ----------
+        n_measurements : int
+            Number of measurements to perform in each experiment
+        n_repeats : int
+            Number of experiments to perform
+        est_method : str, default='lin'
+            Method of reconstructing the density matrix
+            See :ref:`point_estimate` for detailed documentation
+        physical : bool, default=True (optional)
+            See :ref:`point_estimate` for detailed documentation
+        init : str, default='lin' (optional)
+            See :ref:`point_estimate` for detailed documentation
+        use_new_estimate : bool, default=False
+            If False, uses the latest reconstructed state as a state to perform new tomographies on.
+            If True and `state` is None, reconstruct a density matrix from the data obtained in previous experiment
+            ans use it to perform new tomographies on.
+            If True and `state` is not None, use `state` as a state to perform new tomographies on.
+        state : Qobj or None, default=None
+            If not None and `use_new_estimate` is True, use it as a state to perform new tomographies on
         """
         if use_new_estimate and state is None:
             state = self.point_estimate(method=est_method, physical=physical, init=init)
