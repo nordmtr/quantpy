@@ -21,6 +21,7 @@ def _is_unit_trace(tril_vec):
 
 
 def _make_feasible(qobj):
+    """Make the matrix positive semi-definite and with unit trace"""
     EPS = 1e-15
     v, U = la.eigh(qobj.matrix)
     V = np.diag(np.maximum(EPS, v))  # positiveness
@@ -74,13 +75,13 @@ class Tomograph:
         return self.reconstructed_state
 
     def bootstrap(self, n_measurements, n_repeats,
-                  est_method='lin', physical=True, init='lin', use_new_estimate=False):
+                  est_method='lin', physical=True, init='lin', use_new_estimate=False, state=None):
         """
         Perform quantum tomography with *n_measurements* on reconstructed state from results *n_repeats* times
         Output:
             Sorted list of distances between the input state and corresponding estimated matrices
         """
-        if use_new_estimate:
+        if use_new_estimate and state is None:
             state = self.point_estimate(method=est_method, physical=physical, init=init)
         else:
             state = self.reconstructed_state
