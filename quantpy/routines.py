@@ -21,11 +21,7 @@ def generate_pauli(dim):
 
 
 def _density(psi):
-    """
-    Construct a density matrix of a pure state
-    Input:
-        psi = [x1, x2]
-    """
+    """Construct a density matrix of a pure state"""
     return np.array(np.matrix(psi, dtype=np.complex128).T @ np.conj(np.matrix(psi, dtype=np.complex128)))
 
 
@@ -45,19 +41,16 @@ def _complex_to_real(z):
 
 
 def _matrix_to_real_tril_vec(matrix):
+    """Parametrize a positive definite hermitian matrix using its Cholesky decomposition"""
     tril_matrix = la.cholesky(matrix, lower=True)
     complex_tril_vector = tril_matrix[np.tril_indices(tril_matrix.shape[0])]
     return _complex_to_real(complex_tril_vector)
 
 
 def _real_tril_vec_to_matrix(vector):
+    """Restore a matrix from its Cholesky parametrization"""
     complex_vector = _real_to_complex(vector)
     matrix_shape = int(-0.5 + np.sqrt(2 * len(complex_vector) + 0.25))  # solve a quadratic equation for the shape
     tril_matrix = np.zeros((matrix_shape, matrix_shape), dtype=np.complex128)
     tril_matrix[np.tril_indices(matrix_shape)] = complex_vector
     return tril_matrix @ tril_matrix.T.conj()
-
-
-# def tensordot(A, B):
-#     """Return Kronecker product of 2 Qstates. Copy of `Qobj.tensordot`."""
-#     return Qobj(A).tensordot(B)
