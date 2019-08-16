@@ -20,7 +20,7 @@ class Qobj:
         If `data` is 2-D, it is treated as a full matrix
         If `data` is 1-D and `is_ket` is False, it is treated as a bloch vector
         If `data` is 1-D and `is_let` is True, it is treated as a ket vector
-    is_ket : bool
+    is_ket : bool, default=False
 
     Attributes
     ----------
@@ -160,7 +160,17 @@ class Qobj:
         return la.eig(self.matrix)
 
     def tensordot(self, other):
-        """Kronecker product of 2 Qobj instances. Returns another Qobj instance."""
+        """Kronecker product of 2 Qobj instances
+
+        Parameters
+        ----------
+        other : Qobj
+
+        Returns
+        -------
+        result : Qobj
+            Kronecker product of `self` and `other`
+        """
         return self.__class__(np.kron(self.matrix, other.matrix))
 
     def is_density_matrix(self):
