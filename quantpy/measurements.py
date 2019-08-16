@@ -1,10 +1,32 @@
 import numpy as np
 
-# from .qobj import Qobj
-# from .routines import generate_pauli
-
 
 def generate_measurement_matrix(POVM='proj', dim=1):
+    """Generates POVM matrix.
+
+    Parameters
+    ----------
+    POVM : str or numpy 2-D array, default='proj'
+        A single string or a numpy array to construct a POVM matrix.
+
+        Possible strings:
+            'proj' -- orthogonal projective measurement, 6^dim rows
+            'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^dim rows
+
+        Possible numpy arrays:
+            2-D array with shape (*, 4) -- interpreted as POVM matrix for 1 qubit,
+            construct a POVM matrix for the whole system from tensor products of rows of this matrix
+            2-D array with shape (*, 4^dim) -- returns this matrix without any changes
+
+    dim : int, default=1
+        Number of qubits
+
+    Returns
+    -------
+    POVM_matrix : numpy 2-D array
+        Matrix of POVM, where each row represents an operator in the Bloch representation
+        and rows sum into unity.
+    """
     is_full_POVM = False
     if isinstance(POVM, str):
         if POVM == 'proj':
