@@ -3,7 +3,12 @@ import scipy.linalg as la
 
 
 def hs_dst(A, B):
-    """Return Hilbert-Schmidt distance between two matrices"""
+    """Return Hilbert-Schmidt distance between two matrices
+
+    Parameters
+    ----------
+    A, B : numpy 2-D arrays or Qobjs
+    """
     if not isinstance(A, np.ndarray):
         A = A.matrix
     if not isinstance(B, np.ndarray):
@@ -16,7 +21,12 @@ def hs_dst(A, B):
 
 
 def trace_dst(A, B):
-    """Return trace distance between two matrices"""
+    """Return trace distance between two matrices or Qobjs
+
+    Parameters
+    ----------
+    A, B : numpy 2-D arrays or Qobjs
+    """
     if not isinstance(A, np.ndarray):
         A = A.matrix
     if not isinstance(B, np.ndarray):
@@ -29,7 +39,12 @@ def trace_dst(A, B):
 
 
 def if_dst(A, B):
-    """Return infidelity between two matrices"""
+    """Return infidelity between two matrices or Qobjs
+
+    Parameters
+    ----------
+    A, B : numpy 2-D arrays or Qobjs
+    """
     if not isinstance(A, np.ndarray):
         A = A.matrix
     if not isinstance(B, np.ndarray):
@@ -42,5 +57,14 @@ def if_dst(A, B):
 
 
 def product(A, B):
-    """Return hermitian inner product in matrix space"""
+    """Return hermitian inner product in matrix space or Qobjs
+
+    Parameters
+    ----------
+    A, B : numpy 2-D arrays or Qobjs
+    """
+    if not isinstance(A, np.ndarray):
+        A = A.matrix
+    if not isinstance(B, np.ndarray):
+        B = B.matrix
     return np.trace(A @ np.conj(B.T), dtype=np.complex128)
