@@ -29,6 +29,13 @@ def _make_feasible(qobj):
     return Qobj(matrix / np.trace(matrix))
 
 
+def _make_feasible_bloch(qobj):
+    bloch_vec = qobj.bloch
+    bloch_vec[1:] *= 0.5 / la.norm(qobj.bloch[1:], ord=2)
+    bloch_vec[0] = 0.5
+    return Qobj(bloch_vec)
+
+
 class Tomograph:
     """Basic class for quantum state tomography
 
