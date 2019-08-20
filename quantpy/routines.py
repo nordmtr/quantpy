@@ -43,14 +43,18 @@ def _complex_to_real(z):
 def _matrix_to_real_tril_vec(matrix):
     """Parametrize a positive definite hermitian matrix using its Cholesky decomposition"""
     tril_matrix = la.cholesky(matrix, lower=True)
-    complex_tril_vector = tril_matrix[np.tril_indices(tril_matrix.shape[0])]
-    return _complex_to_real(complex_tril_vector)
+    diag_vector = tril_matrix[np.diag_indices(tril_matrix.shape[0])].astype(float)
+    complex_tril_vector = tril_matrix[np.tril_indices(tril_matrix.shape[0], -1)]
+    real_tril_vector = _complex_to_real(complex_tril_vector)
+    return np.concatenate((diag_vector, real_tril_vector))
 
 
 def _real_tril_vec_to_matrix(vector):
     """Restore a matrix from its Cholesky parametrization"""
-    complex_vector = _real_to_complex(vector)
-    matrix_shape = int(-0.5 + np.sqrt(2 * len(complex_vector) + 0.25))  # solve a quadratic equation for the shape
+    matrix_shape = int(np.sqrt(len(vector)))  # solve a quadratic equation for the shape
+    diag_vector = vector[:matrix_shape]
+    complex_vector = _real_to_complex(vector[matrix_shape:])
     tril_matrix = np.zeros((matrix_shape, matrix_shape), dtype=np.complex128)
-    tril_matrix[np.tril_indices(matrix_shape)] = complex_vector
+    tril_matrix[np.tril_indices(matrix_shape, -1)] = complex_vector
+    tril_matrix[np.diag_indices(matrix_shape)] = diag_vector
     return tril_matrix @ tril_matrix.T.conj()
