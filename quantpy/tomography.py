@@ -29,7 +29,7 @@ def _make_feasible(qobj):
     return Qobj(matrix / np.trace(matrix))
 
 
-def _make_feasible_bloch(qobj):
+def _make_feasible_bloch(qobj):  # works only for 1-qubit systems !!
     bloch_vec = qobj.bloch
     bloch_vec[1:] *= 0.5 / la.norm(qobj.bloch[1:], ord=2)
     bloch_vec[0] = 0.5
@@ -175,8 +175,8 @@ class Tomograph:
             raise ValueError('Invalid value for argument `method`')
         return self.reconstructed_state
 
-    def bootstrap(self, n_measurements, n_repeats,
-                  est_method='lin', physical=True, init='lin', use_new_estimate=False, state=None):
+    def bootstrap(self, n_measurements, n_repeats, est_method='lin', physical=True, init='lin',
+                  use_new_estimate=False, state=None, kind='estim'):
         """Perform multiple tomography simulation on the preferred state.
         Count the distances to the bootstrapped states.
 
@@ -200,6 +200,13 @@ class Tomograph:
             If True and `state` is not None, use `state` as a state to perform new tomographies on.
         state : Qobj or None, default=None
             If not None and `use_new_estimate` is True, use it as a state to perform new tomographies on
+        kind : str, default='est'
+            Type of confidence interval to build.
+            Possible values:
+                'estim' -- CI for the point estimate
+                'target' -- CI for the target state built with bootstrap from point estimate only
+                'triangle' -- CI for the target state built with bootstrap from point estimate only
+                              + triangle inequality
         """
         if not use_new_estimate:
             state = self.reconstructed_state
@@ -211,7 +218,12 @@ class Tomograph:
         for _ in range(n_repeats):
             boot_tmg.experiment(n_measurements, POVM=self.POVM_matrix)
             rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init)
-            dist.append(self.dst(rho, state))
+            if kind == 'estim':
+                dist.append(self.dst(rho, state))
+            elif kind == 'target':
+                dist.append(self.dst(rho, self.state))
+            elif kind == 'triangle':
+                dist.append(self.dst(rho, state) + self.dst(state, self.state))
         dist.sort()
         return dist
 
