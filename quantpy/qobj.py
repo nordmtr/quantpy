@@ -105,7 +105,7 @@ class Qobj:
     def matrix(self, data):
         self._types.add('matrix')
         self._types.discard('bloch')
-        self._matrix = data
+        self._matrix = np.array(data)
 
     @property
     def bloch(self):
@@ -123,7 +123,7 @@ class Qobj:
         if isinstance(data, list):
             data = np.array(data)
         self._type = 'bloch'
-        self._bloch = data
+        self._bloch = np.array(data)
 
     @property
     def T(self):
