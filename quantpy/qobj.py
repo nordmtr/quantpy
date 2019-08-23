@@ -47,6 +47,8 @@ class Qobj:
         Check if the quantum object is valid density matrix
     is_pure()
         Check if the quantum object is rank-1 valid density matrix
+    ptrace()
+        Partial trace of the quantum object
     tensordot()
         Kronecker product of 2 Qobj instances
     trace()
@@ -140,6 +142,27 @@ class Qobj:
     def trace(self):
         """Trace of the quantum object"""
         return np.trace(self.matrix)
+
+    def ptrace(self, keep=[0]):
+        """Partial trace of the quantum object
+
+        Parameters
+        ----------
+        keep : array-like, default=[0]
+            List of indices of subsystems to keep after being traced.
+
+        Returns
+        -------
+        rho : Qobj
+            Traced quantum object
+        """
+        keep = np.array(keep)
+
+        bra_idx = list(range(self.dim))
+        ket_idx = [self.dim + i if i in keep else i for i in range(self.dim)]  # preserve indices in `keep`
+        rho = self.matrix.reshape([2] * (2 * self.dim))
+        rho = np.einsum(rho, bra_idx + ket_idx)  # sum over the preferred indices
+        return Qobj(rho.reshape(2 ** len(keep), 2 ** len(keep)))
 
     def eig(self):
         """Find eigenvalues and eigenvectors of the quantum object
