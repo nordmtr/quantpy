@@ -6,7 +6,7 @@ with open('README.md', 'r') as file:
 
 setuptools.setup(
     name='quantpy',
-    version='0.1',
+    version='0.2',
     description='Framework for quantum computations and tomography',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -15,8 +15,6 @@ setuptools.setup(
     install_requires=[
         'numpy',
         'scipy',
-        'sys'
     ],
     packages=setuptools.find_packages(),
-    package_dir=setuptools.find_packages()
 )
