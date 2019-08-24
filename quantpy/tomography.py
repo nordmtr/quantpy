@@ -142,14 +142,13 @@ class Tomograph:
 
             Possible values:
                 'lin' -- linear inversion
-                'mle-chol' -- maximum likelihood estimation with Cholesky parametrization,
-                              unconstrained optimization
-                'mle-chol-constr' -- same as 'mle-chol', but optimization is constrained
+                'mle' -- maximum likelihood estimation with Cholesky parametrization, unconstrained optimization
+                'mle-constr' -- same as 'mle', but optimization is constrained
                 'mle-bloch' -- maximum likelihood estimation with Bloch parametrization,
                                constrained optimization (works only for 1-qubit systems)
 
         physical : bool, default=True (optional)
-            For methods 'lin' and 'mle-chol' reconstructed matrix may not lie in the physical domain.
+            For methods 'lin' and 'mle' reconstructed matrix may not lie in the physical domain.
             If True, set negative eigenvalues to zeros and divide the matrix by its trace.
 
         init : str, default='lin' (optional)
@@ -165,9 +164,9 @@ class Tomograph:
         """
         if method == 'lin':
             self.reconstructed_state = self._point_estimate_lin(physical=physical)
-        elif method == 'mle-chol':
+        elif method == 'mle':
             self.reconstructed_state = self._point_estimate_mle_chol(init=init)
-        elif method == 'mle-chol-constr':
+        elif method == 'mle-constr':
             self.reconstructed_state = self._point_estimate_mle_chol_constr(init=init)
         elif method == 'mle-bloch':
             self.reconstructed_state = self._point_estimate_mle_bloch(physical=physical)
@@ -175,7 +174,7 @@ class Tomograph:
             raise ValueError('Invalid value for argument `method`')
         return self.reconstructed_state
 
-    def bootstrap(self, n_measurements, n_repeats, est_method='lin', physical=True, init='lin',
+    def bootstrap(self, n_measurements, n_boot, est_method='lin', physical=True, init='lin',
                   use_new_estimate=False, state=None, kind='estim'):
         """Perform multiple tomography simulation on the preferred state.
         Count the distances to the bootstrapped states.
@@ -184,7 +183,7 @@ class Tomograph:
         ----------
         n_measurements : int
             Number of measurements to perform in each experiment
-        n_repeats : int
+        n_boot : int
             Number of experiments to perform
         est_method : str, default='lin'
             Method of reconstructing the density matrix
@@ -215,7 +214,7 @@ class Tomograph:
 
         dist = [0]
         boot_tmg = self.__class__(state, self.dst)
-        for _ in range(n_repeats):
+        for _ in range(n_boot):
             boot_tmg.experiment(n_measurements, POVM=self.POVM_matrix)
             rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init)
             if kind == 'estim':
