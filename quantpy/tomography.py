@@ -251,7 +251,7 @@ class Tomograph:
         matrix = _real_tril_vec_to_matrix(tril_vec)
         rho = Qobj(matrix / np.trace(matrix))
         probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.dim)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS))
+        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / self.n_measurements
         return -log_likelihood
 
     def _point_estimate_mle_chol_constr(self, init):
@@ -273,7 +273,7 @@ class Tomograph:
         EPS = 1e-10
         rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
         probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.dim)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS))
+        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / self.n_measurements
         return -log_likelihood
 
     def _point_estimate_mle_bloch(self, physical):  # works only for 1-qubit systems
@@ -292,5 +292,5 @@ class Tomograph:
         EPS = 1e-10
         bloch_vec = np.append(1 / 2 ** self.state.dim, bloch_vec)
         probas = self.POVM_matrix @ bloch_vec * (2 ** self.state.dim)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS))
+        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / self.n_measurements
         return -log_likelihood
