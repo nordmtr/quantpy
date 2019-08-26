@@ -11,16 +11,6 @@ class BaseQuantum(ABC):
         pass
 
     @property
-    @abstractmethod
-    def matrix(self):
-        pass
-
-    @matrix.setter
-    @abstractmethod
-    def matrix(self, data):
-        pass
-
-    @property
     def T(self):
         """Transpose of the quantum object"""
         return self.__class__(self.matrix.T)
