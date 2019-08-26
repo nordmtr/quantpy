@@ -2,13 +2,12 @@ import sys
 import numpy as np
 import scipy.linalg as la
 
-from copy import deepcopy
-
 from .geometry import product
 from .routines import generate_pauli, _density
+from .base_quantum import BaseQuantum
 
 
-class Qobj:
+class Qobj(BaseQuantum):
     """Basic class for representing quantum objects, such as quantum states and operators
 
     This class supports all simple math operations, as well as a collection of common
@@ -124,24 +123,6 @@ class Qobj:
         self._type = 'bloch'
         self._bloch = np.array(data)
 
-    @property
-    def T(self):
-        """Transpose of the quantum object"""
-        return self.__class__(self.matrix.T)
-
-    @property
-    def H(self):
-        """Adjoint matrix of the quantum object"""
-        return self.__class__(self.matrix.T.conj())
-
-    def conj(self):
-        """Conjugate of the quantum object"""
-        return self.__class__(self.matrix.conj())
-
-    def trace(self):
-        """Trace of the quantum object"""
-        return np.trace(self.matrix)
-
     def ptrace(self, keep=[0]):
         """Partial trace of the quantum object
 
@@ -181,20 +162,6 @@ class Qobj:
         """
         return la.eig(self.matrix)
 
-    def tensordot(self, other):
-        """Kronecker product of 2 Qobj instances
-
-        Parameters
-        ----------
-        other : Qobj
-
-        Returns
-        -------
-        result : Qobj
-            Kronecker product of `self` and `other`
-        """
-        return self.__class__(np.kron(self.matrix, other.matrix))
-
     def is_density_matrix(self):
         """Check if the quantum object is a valid density matrix.
         Perform a test for hermiticity, positive semi-definiteness and unit trace.
@@ -217,64 +184,5 @@ class Qobj:
         """Check if the quantum object is a valid rank-1 density matrix"""
         return (np.linalg.matrix_rank(self.matrix, tol=1e-10, hermitian=True) == 1) and self.is_density_matrix()
 
-    def copy(self):
-        """Create a copy of this Qobj instance"""
-        return deepcopy(self)
-
     def __repr__(self):
         return 'Quantum object\n' + repr(self.matrix)
-
-    def __eq__(self, other):
-        return self.matrix == other.matrix
-
-    def __ne__(self, other):
-        return self.matrix != other.matrix
-
-    def __neg__(self):
-        return self.__class__(-self.matrix)
-
-    def __matmul__(self, other):
-        return self.__class__(self.matrix @ other.matrix)
-
-    def __add__(self, other):
-        return self.__class__(self.matrix + other.matrix)
-
-    def __sub__(self, other):
-        return self.__class__(self.matrix - other.matrix)
-
-    def __mul__(self, other):
-        if isinstance(other, (int, float, complex)):
-            return self.__class__(self.matrix * other)
-        else:
-            raise ValueError('Only multiplication by a scalar is allowed')
-
-    def __truediv__(self, other):
-        if isinstance(other, (int, float, complex)):
-            return self.__class__(self.matrix / other)
-        else:
-            raise ValueError('Only division by a scalar is allowed')
-
-    def __iadd__(self, other):
-        self.matrix = self.matrix + other.matrix
-        return self
-
-    def __isub__(self, other):
-        self.matrix = self.matrix - other.matrix
-        return self
-
-    def __imul__(self, other):
-        if type(other) in (int, float, complex):
-            self.matrix = self.matrix * other
-            return self
-        else:
-            raise ValueError('Only multiplication by a scalar is supported')
-
-    def __idiv__(self, other):
-        if type(other) in (int, float, complex):
-            self.matrix = self.matrix * other
-            return self
-        else:
-            raise ValueError('Only division by a scalar is supported')
-
-    def __rmul__(self, other):
-        return self.__mul__(other)

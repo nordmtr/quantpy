@@ -12,3 +12,6 @@ from .measurements import (
     generate_measurement_matrix,
 )
 from .tomography import Tomograph
+from .channel import Channel
+from .base_quantum import BaseQuantum
+from .gate import Gate
