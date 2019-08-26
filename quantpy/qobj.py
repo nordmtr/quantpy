@@ -71,7 +71,6 @@ class Qobj:
     """
 
     def __init__(self, data, is_ket=False):
-
         self._types = set()  # Set of types which represent the state
         if is_ket:
             data = _density(data)
@@ -223,7 +222,7 @@ class Qobj:
         return deepcopy(self)
 
     def __repr__(self):
-        return repr(self.matrix)
+        return 'Quantum object\n' + repr(self.matrix)
 
     def __eq__(self, other):
         return self.matrix == other.matrix
