@@ -20,6 +20,17 @@ def generate_pauli(dim):
     return basis
 
 
+def generate_single_entries(dim):
+    """Generate all matrices with shape dim * dim with single entries"""
+    list_of_single_entries = []
+    for i in range(dim):
+        for j in range(dim):
+            single_entry = np.array(np.zeros((dim, dim)))
+            single_entry[i, j] = 1
+            list_of_single_entries.append(single_entry)
+    return list_of_single_entries
+
+
 def _density(psi):
     """Construct a density matrix of a pure state"""
     return np.array(np.matrix(psi, dtype=np.complex128).T @ np.conj(np.matrix(psi, dtype=np.complex128)))
