@@ -14,4 +14,4 @@ from .measurements import (
 from .tomography import Tomograph
 from .channel import Channel
 from .base_quantum import BaseQuantum
-from .gate import Gate
+from .operator import Operator

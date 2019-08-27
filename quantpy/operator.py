@@ -3,42 +3,42 @@ import numpy as np
 from .base_quantum import BaseQuantum
 from .qobj import Qobj
 from .channel import Channel
-from .routines import _SIGMA_I, _SIGMA_X, _SIGMA_Y, _SIGMA_Z
+from .routines import density, _SIGMA_I, _SIGMA_X, _SIGMA_Y, _SIGMA_Z
 
 
-class Gate(BaseQuantum):
+class Operator(BaseQuantum):
     """Class for representing quantum gates
 
     Parameters
     ----------
     data : array-like
-        Matrix representation of a quantum gate
+        Matrix representation of a quantum operator
 
     Attributes
     ----------
-    H : Gate (property)
-        Adjoint matrix of the quantum gate
+    H : Operator (property)
+        Adjoint matrix of the quantum operator
     matrix : numpy 2-D array (property)
-        Matrix representation of the quantum gate
+        Matrix representation of the quantum operator
     n_qubits : int
         Number of qubits
-    T : Gate (property)
-        Transpose of the quantum gate
+    T : Operator (property)
+        Transpose of the quantum operator
 
     Methods
     -------
     as_channel()
-        Convert Gate to Channel
+        Convert Operator to Channel
     conj()
-        Conjugate of the quantum gate
+        Conjugate of the quantum operator
     copy()
-        Create a copy of this Gate instance
+        Create a copy of this Operator instance
     kron()
-        Kronecker product of 2 Gate instances
+        Kronecker product of 2 Operator instances
     trace()
-        Trace of the quantum gate
+        Trace of the quantum operator
     transform()
-        Apply this gate to a quantum state
+        Apply this operator to a quantum state
     """
     def __init__(self, data):
         self._matrix = np.array(data, dtype=np.complex128)
@@ -46,7 +46,7 @@ class Gate(BaseQuantum):
 
     @property
     def matrix(self):
-        """Quantum gate in a matrix form"""
+        """Quantum Operator in a matrix form"""
         return self._matrix
 
     @matrix.setter
@@ -55,52 +55,52 @@ class Gate(BaseQuantum):
         self.n_qubits = int(np.log2(self._matrix.shape[0]))
 
     def transform(self, state):
-        """Apply this gate to the state: U @ rho @ U.H"""
+        """Apply this Operator to the state: U @ rho @ U.H"""
         return Qobj((self @ state @ self.H).matrix)
 
     def as_channel(self):
-        """Return a channel representation of this gate"""
+        """Return a channel representation of this Operator"""
         return Channel(self.transform, self.n_qubits)
 
     def __repr__(self):
-        return 'Quantum gate\n' + repr(self.matrix)
+        return 'Quantum Operator\n' + repr(self.matrix)
 
 
 # One-qubit gates
 
 def PHASE(theta):
-    return Gate([
+    return Operator([
         [1, 0],
         [0, np.exp(1j * theta)],
     ])
 
 
 def RX(theta):
-    return Gate([
+    return Operator([
         [np.cos(theta/2), -1j * np.sin(theta/2)],
         [-1j * np.sin(theta/2), np.cos(theta/2)],
     ])
 
 
 def RY(theta):
-    return Gate([
+    return Operator([
         [np.cos(theta/2), -np.sin(theta/2)],
         [np.sin(theta/2), np.cos(theta/2)],
     ])
 
 
 def RZ(theta):
-    return Gate([
+    return Operator([
         [np.exp(-theta/2), 0],
         [0, np.exp(theta/2)],
     ])
 
 
-Id = Gate(_SIGMA_I)
-X = Gate(_SIGMA_X)
-Y = Gate(_SIGMA_Y)
-Z = Gate(_SIGMA_Z)
-H = Gate([
+Id = Operator(_SIGMA_I)
+X = Operator(_SIGMA_X)
+Y = Operator(_SIGMA_Y)
+Z = Operator(_SIGMA_Z)
+H = Operator([
     [1, 1],
     [1, -1],
 ]) / np.sqrt(2)
@@ -109,37 +109,44 @@ S = PHASE(np.pi/2)
 
 # Two-qubit gates
 
-CNOT = Gate([
+CNOT = Operator([
     [1, 0, 0, 0],
     [0, 1, 0, 0],
     [0, 0, 0, 1],
     [0, 0, 1, 0],
 ])
 
-CY = Gate([
+CY = Operator([
     [1, 0, 0, 0],
     [0, 1, 0, 0],
     [0, 0, 0, -1j],
     [0, 0, 1j, 0],
 ])
 
-CZ = Gate([
+CZ = Operator([
     [1, 0, 0, 0],
     [0, 1, 0, 0],
     [0, 0, 1, 0],
     [0, 0, 0, -1],
 ])
 
-SWAP = Gate([
+SWAP = Operator([
     [1, 0, 0, 0],
     [0, 0, 1, 0],
     [0, 1, 0, 0],
     [0, 0, 0, 1],
 ])
 
-ISWAP = Gate([
+ISWAP = Operator([
     [1, 0, 0, 0],
     [0, 0, 1j, 0],
     [0, 1j, 0, 0],
     [0, 0, 0, 1],
 ])
+
+
+def _choi_to_kraus(choi):
+    EPS = 1e-15
+    eigvals, eigvecs = choi.eig()
+    eigvecs = list(eigvecs.T)
+    return [Operator(density(vec) * val) for val, vec in zip(eigvals, eigvecs) if abs(val) > EPS]
