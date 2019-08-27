@@ -13,7 +13,7 @@ PAULI_1 = [SIGMA_I, SIGMA_X, SIGMA_Y, SIGMA_Z]
 
 
 def generate_pauli(dim):
-    """Generate basis of Pauli matrices for `dim` qubits."""
+    """Generate basis of Pauli matrices for `dim` qubits"""
     basis = PAULI_1
     for _ in range(dim - 1):
         basis = np.kron(basis, PAULI_1)
@@ -31,13 +31,26 @@ def generate_single_entries(dim):
     return list_of_single_entries
 
 
+def kron(A, B):
+    """Same as `kron` method for `Qobj` and `Gate` classes"""
+    return A.kron(B)
+
+
+def join_gates(gates):
+    """Construct one gate from a list of gates"""
+    new_gate = gates[0]
+    for gate in gates[1:]:
+        new_gate = gate @ new_gate
+    return new_gate
+
+
 def _density(psi):
     """Construct a density matrix of a pure state"""
     return np.array(np.matrix(psi, dtype=np.complex128).T @ np.conj(np.matrix(psi, dtype=np.complex128)))
 
 
 def _left_inv(A):
-    """Return left pseudo-inverse matrix."""
+    """Return left pseudo-inverse matrix"""
     return la.inv(A.T @ A) @ A.T
 
 

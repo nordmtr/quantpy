@@ -32,7 +32,7 @@ class BaseQuantum(ABC):
         """Create a copy of this instance"""
         return deepcopy(self)
 
-    def tensordot(self, other):
+    def kron(self, other):
         """Kronecker product of 2 instances"""
         return self.__class__(np.kron(self.matrix, other.matrix))
 

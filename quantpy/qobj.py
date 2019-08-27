@@ -48,7 +48,7 @@ class Qobj(BaseQuantum):
         Check if the quantum object is rank-1 valid density matrix
     ptrace()
         Partial trace of the quantum object
-    tensordot()
+    kron()
         Kronecker product of 2 Qobj instances
     trace()
         Trace of the quantum object
@@ -70,22 +70,25 @@ class Qobj(BaseQuantum):
     """
 
     def __init__(self, data, is_ket=False):
-        self._types = set()  # Set of types which represent the state
-        if is_ket:
-            data = _density(data)
-        data = np.array(data)
-        if len(data.shape) == 1:
-            self._matrix = None
-            self._bloch = data
-            self._types.add('bloch')
-            self.dim = int(np.log2(data.shape[0]) / 2)
-        elif len(data.shape) == 2:
-            self._matrix = data
-            self._bloch = None
-            self._types.add('matrix')
-            self.dim = int(np.log2(data.shape[0]))
+        if isinstance(data, Qobj):
+            self = data.copy()
         else:
-            raise ValueError('Invalid data format')
+            self._types = set()  # Set of types which represent the state
+            if is_ket:
+                data = _density(data)
+            data = np.array(data)
+            if len(data.shape) == 1:
+                self._matrix = None
+                self._bloch = data
+                self._types.add('bloch')
+                self.dim = int(np.log2(data.shape[0]) / 2)
+            elif len(data.shape) == 2:
+                self._matrix = data
+                self._bloch = None
+                self._types.add('matrix')
+                self.dim = int(np.log2(data.shape[0]))
+            else:
+                raise ValueError('Invalid data format')
 
     @property
     def matrix(self):
