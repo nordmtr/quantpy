@@ -32,7 +32,7 @@ def generate_single_entries(dim):
 
 
 def kron(A, B):
-    """Same as `kron` method for `Qobj` and `Gate` classes"""
+    """Same as `kron` method for `Qobj` and `Operator` classes"""
     return A.kron(B)
 
 
@@ -42,6 +42,15 @@ def join_gates(gates):
     for gate in gates[1:]:
         new_gate = gate @ new_gate
     return new_gate
+
+
+def _vec2mat(vector):
+    shape = int(np.sqrt(len(vector)))
+    return vector.reshape(shape, shape).T
+
+
+def _mat2vec(matrix):
+    return matrix.T.reshape(np.prod(matrix.shape))
 
 
 def _density(psi):

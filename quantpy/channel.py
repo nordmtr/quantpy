@@ -1,9 +1,9 @@
 import numpy as np
 
 from .base_quantum import BaseQuantum
-from .routines import generate_single_entries
+from .operator import _choi_to_kraus
+from .routines import generate_single_entries, kron
 from .qobj import Qobj
-from .routines import kron
 
 
 class Channel(BaseQuantum):
@@ -11,9 +11,10 @@ class Channel(BaseQuantum):
 
     Parameters
     ----------
-    data : callable, array-like or Qobj
+    data : callable, numpy 2-D array, Qobj or list
         If callable, treated as a transformation function. `n_qubits` argument is necessary in this case.
-        If array-like or Qobj, treated as a Choi matrix
+        If numpy 2-D array or Qobj, treated as a Choi matrix
+        If list, treated as Kraus representation
     n_qubits : int or None, default=None (optional)
         Number of qubits
 
@@ -34,6 +35,8 @@ class Channel(BaseQuantum):
         Channel with conjugated Choi matrix
     copy()
         Create a copy of this Gate instance
+    kraus()
+        Kraus representation of the channel
     kron()
         Kronecker product of 2 Qobj instances
     set_func()
@@ -47,6 +50,7 @@ class Channel(BaseQuantum):
         self._types = set()
         if callable(data):
             self._choi = None
+            self._kraus = None
             self._func = data
             self._types.add('func')
             if n_qubits is None:
@@ -55,42 +59,60 @@ class Channel(BaseQuantum):
         elif isinstance(data, np.ndarray) or isinstance(data, Qobj):
             self._choi = Qobj(data)
             self._func = None
+            self._kraus = None
             self._types.add('choi')
             self.n_qubits = int(np.log2(data.shape[0]) / 2)
+        elif isinstance(data, list):
+            self._choi = None
+            self._func = None
+            self._kraus = data
+            self._types.add('kraus')
+            self.n_qubits = int(np.log2(data[0].shape[0]))
         else:
             raise ValueError('Invalid data format')
 
     def set_func(self, data, n_qubits):
         """Set a new transformation function that defines the channel"""
-        self._types.add('func')
         self._types.discard('choi')
+        self._types.discard('kraus')
         self._func = data
         self.n_qubits = n_qubits
+        self._types.add('func')
 
     @property
     def choi(self):
         """Choi matrix of the channel"""
         if 'choi' not in self._types:
-            self._types.add('choi')
             self._choi = Qobj(np.zeros((4 ** self.n_qubits, 4 ** self.n_qubits), dtype=np.complex128))
             for single_entry in generate_single_entries(2 ** self.n_qubits):
                 self._choi += kron(Qobj(single_entry), self.transform(single_entry))
+            self._types.add('choi')
         return self._choi
 
     @choi.setter
     def choi(self, data):
-        self._types.add('choi')
         self._types.discard('func')
+        self._types.discard('kraus')
         if not isinstance(data, Qobj):
             data = Qobj(data)
         self._choi = data
         self.n_qubits = int(np.log2(data.shape[0]) / 2)
+        self._types.add('choi')
+
+    @property
+    def kraus(self):
+        if 'kraus' not in self._types:
+            self._kraus = _choi_to_kraus(self.choi)
+            self._types.add('kraus')
+        return self._kraus
 
     def transform(self, state):
         """Apply this channel to the quantum state"""
         if not isinstance(state, Qobj):
             state = Qobj(state)
-        if 'func' in self._types:
+        if 'kraus' in self._types:
+            output_state = np.sum([oper.transform(state) for oper in self.kraus])
+        elif 'func' in self._types:
             output_state = self._func(state)
         else:  # compute output state using Choi matrix
             common_state = kron(state.T, Qobj(np.eye(2 ** self.n_qubits)))

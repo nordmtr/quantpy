@@ -15,7 +15,7 @@ class Qobj(BaseQuantum):
 
     Parameters
     ----------
-    data : array-like
+    data : array-like or None, default=None
         If `data` is 2-D, it is treated as a full matrix
         If `data` is 1-D and `is_ket` is False, it is treated as a bloch vector
         If `data` is 1-D and `is_let` is True, it is treated as a ket vector
@@ -46,10 +46,10 @@ class Qobj(BaseQuantum):
         Check if the quantum object is valid density matrix
     is_pure()
         Check if the quantum object is rank-1 valid density matrix
-    ptrace()
-        Partial trace of the quantum object
     kron()
         Kronecker product of 2 Qobj instances
+    ptrace()
+        Partial trace of the quantum object
     trace()
         Trace of the quantum object
 
@@ -69,11 +69,11 @@ class Qobj(BaseQuantum):
            [0.+0.j, 0.+0.j]])
     """
 
-    def __init__(self, data, is_ket=False):
+    def __init__(self, data=None, is_ket=False):
+        self._types = set()  # Set of types which represent the state
         if isinstance(data, Qobj):
             self = data.copy()
-        else:
-            self._types = set()  # Set of types which represent the state
+        elif data is not None:
             if is_ket:
                 data = _density(data)
             data = np.array(data)
