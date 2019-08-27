@@ -10,7 +10,7 @@ from .routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_mat
 
 def _is_positive(bloch_vec):  # works only for 1-qubit systems !!
     """Positivity constraint for minimize function based on the trace condition"""
-    bloch_len = len(bloch_vec) + 1  # 4 ** dim
+    bloch_len = len(bloch_vec) + 1  # 4 ** n_qubits
     return np.sqrt(bloch_len) - 1 - bloch_len * np.sum(bloch_vec ** 2)
 
 
@@ -62,7 +62,7 @@ class Tomograph:
     n_measurements : float
         Total number of measurements made during tomography
     POVM_matrix : numpy 2-D array
-        Numpy array with shape (*, 4^dim), representing the measurement matrix.
+        Numpy array with shape (*, 4^n_qubits), representing the measurement matrix.
         Rows are bloch vectors that sum into unity
     reconstructed_state : Qobj
         The most recent estimation of a density matrix, if ever performed
@@ -104,21 +104,21 @@ class Tomograph:
             A single string or a numpy array to construct a POVM matrix.
 
             Possible strings:
-                'proj' -- orthogonal projective measurement, 6^dim rows
-                'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^dim rows
+                'proj' -- orthogonal projective measurement, 6^n_qubits rows
+                'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^n_qubits rows
 
             Possible numpy arrays:
                 2-D array with shape (*, 4) -- interpreted as POVM matrix for 1 qubit,
                 construct a POVM matrix for the whole system from tensor products of rows of this matrix
-                2-D array with shape (*, 4^dim) -- returns this matrix without any changes
+                2-D array with shape (*, 4^n_qubits) -- returns this matrix without any changes
 
             See :ref:`generate_measurement_matrix` for more detailed documentation
 
         warm_start : bool, default=False
             If True, do not overwrite the previous experiment results, add all results to those of the previous run
         """
-        POVM_matrix = generate_measurement_matrix(POVM, self.state.dim)
-        probas = POVM_matrix @ self.state.bloch * (2 ** self.state.dim)
+        POVM_matrix = generate_measurement_matrix(POVM, self.state.n_qubits)
+        probas = POVM_matrix @ self.state.bloch * (2 ** self.state.n_qubits)
         results = np.random.multinomial(n_measurements, probas)
         if warm_start:
             self.POVM_matrix = np.vstack((
@@ -228,7 +228,7 @@ class Tomograph:
 
     def _point_estimate_lin(self, physical):
         frequencies = self.results / self.results.sum()
-        bloch_vec = _left_inv(self.POVM_matrix) @ frequencies / (2 ** self.state.dim)
+        bloch_vec = _left_inv(self.POVM_matrix) @ frequencies / (2 ** self.state.n_qubits)
         rho = Qobj(bloch_vec)
         if physical:
             rho = _make_feasible(rho)
@@ -236,7 +236,7 @@ class Tomograph:
 
     def _point_estimate_mle_chol(self, init):
         if init == 'mixed':
-            x0 = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)  # fully mixed state
+            x0 = np.eye(2 ** self.state.n_qubits) / (2 ** self.state.n_qubits)  # fully mixed state
         elif init == 'lin':
             x0 = self.point_estimate('lin').matrix
         else:
@@ -250,7 +250,7 @@ class Tomograph:
         EPS = 1e-10
         matrix = _real_tril_vec_to_matrix(tril_vec)
         rho = Qobj(matrix / np.trace(matrix))
-        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.dim)
+        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
         log_likelihood = np.sum(self.results * np.log(probas + EPS)) / self.n_measurements
         return -log_likelihood
 
@@ -259,7 +259,7 @@ class Tomograph:
             {'type': 'eq', 'fun': _is_unit_trace},
         ]
         if init == 'mixed':
-            x0 = np.eye(2 ** self.state.dim) / (2 ** self.state.dim)  # fully mixed state
+            x0 = np.eye(2 ** self.state.n_qubits) / (2 ** self.state.n_qubits)  # fully mixed state
         elif init == 'lin':
             x0 = self.point_estimate('lin').matrix
         else:
@@ -272,7 +272,7 @@ class Tomograph:
     def _neg_log_likelihood_chol_constr(self, tril_vec):
         EPS = 1e-10
         rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
-        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.dim)
+        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
         log_likelihood = np.sum(self.results * np.log(probas + EPS)) / self.n_measurements
         return -log_likelihood
 
@@ -280,9 +280,9 @@ class Tomograph:
         constraints = [
             {'type': 'ineq', 'fun': _is_positive},
         ]
-        x0 = np.zeros(4 ** self.state.dim - 1)  # fully mixed state
+        x0 = np.zeros(4 ** self.state.n_qubits - 1)  # fully mixed state
         opt_res = minimize(self._neg_log_likelihood_bloch, x0, constraints=constraints, method='SLSQP')
-        bloch_vec = np.append(1 / 2 ** self.state.dim, opt_res.x)
+        bloch_vec = np.append(1 / 2 ** self.state.n_qubits, opt_res.x)
         rho = Qobj(bloch_vec)
         if physical:
             rho = self._make_feasible(rho)
@@ -290,7 +290,7 @@ class Tomograph:
 
     def _neg_log_likelihood_bloch(self, bloch_vec):
         EPS = 1e-10
-        bloch_vec = np.append(1 / 2 ** self.state.dim, bloch_vec)
-        probas = self.POVM_matrix @ bloch_vec * (2 ** self.state.dim)
+        bloch_vec = np.append(1 / 2 ** self.state.n_qubits, bloch_vec)
+        probas = self.POVM_matrix @ bloch_vec * (2 ** self.state.n_qubits)
         log_likelihood = np.sum(self.results * np.log(probas + EPS)) / self.n_measurements
         return -log_likelihood

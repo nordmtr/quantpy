@@ -25,12 +25,12 @@ class Qobj(BaseQuantum):
     ----------
     bloch : numpy 1-D array (property)
         A vector, representing the quantum object in Pauli basis (only for Hermitian matrices)
-    dim : int
-        Number of qubits
     H : Qobj (property)
         Adjoint matrix of the quantum object
     matrix : numpy 2-D array (property)
         Quantum object in a matrix form
+    n_qubits : int
+        Number of qubits
     T : Qobj (property)
         Transpose of the quantum object
 
@@ -81,12 +81,12 @@ class Qobj(BaseQuantum):
                 self._matrix = None
                 self._bloch = data
                 self._types.add('bloch')
-                self.dim = int(np.log2(data.shape[0]) / 2)
+                self.n_qubits = int(np.log2(data.shape[0]) / 2)
             elif len(data.shape) == 2:
                 self._matrix = data
                 self._bloch = None
                 self._types.add('matrix')
-                self.dim = int(np.log2(data.shape[0]))
+                self.n_qubits = int(np.log2(data.shape[0]))
             else:
                 raise ValueError('Invalid data format')
 
@@ -95,11 +95,11 @@ class Qobj(BaseQuantum):
         """Quantum object in a matrix form"""
         if 'matrix' not in self._types:
             self._types.add('matrix')
-            basis = generate_pauli(self.dim)
-            self._matrix = np.zeros((2 ** self.dim, 2 ** self.dim), dtype=np.complex128)
-            for i in range(4 ** self.dim):
+            basis = generate_pauli(self.n_qubits)
+            self._matrix = np.zeros((2 ** self.n_qubits, 2 ** self.n_qubits), dtype=np.complex128)
+            for i in range(4 ** self.n_qubits):
                 self._matrix += basis[i] * self._bloch[i]
-            # self._matrix /= (2 ** self.dim)
+            # self._matrix /= (2 ** self.n_qubits)
         return self._matrix
 
     @matrix.setter
@@ -113,10 +113,10 @@ class Qobj(BaseQuantum):
         """A vector, representing the quantum object in Pauli basis"""
         if 'bloch' not in self._types:
             self._types.add('bloch')
-            basis = generate_pauli(self.dim)
+            basis = generate_pauli(self.n_qubits)
             self._bloch = np.array(
                 [np.real(product(basis_element, self._matrix)) for basis_element in basis]
-            ) / (2 ** self.dim)
+            ) / (2 ** self.n_qubits)
         return self._bloch
 
     @bloch.setter
@@ -141,9 +141,9 @@ class Qobj(BaseQuantum):
         """
         keep = np.array(keep)
 
-        bra_idx = list(range(self.dim))
-        ket_idx = [self.dim + i if i in keep else i for i in range(self.dim)]  # preserve indices in `keep`
-        rho = self.matrix.reshape([2] * (2 * self.dim))
+        bra_idx = list(range(self.n_qubits))
+        ket_idx = [self.n_qubits + i if i in keep else i for i in range(self.n_qubits)]  # preserve indices in `keep`
+        rho = self.matrix.reshape([2] * (2 * self.n_qubits))
         rho = np.einsum(rho, bra_idx + ket_idx)  # sum over the preferred indices
         return Qobj(rho.reshape(2 ** len(keep), 2 ** len(keep)))
 

@@ -12,10 +12,10 @@ _SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=np.complex128)
 _PAULI_1 = [_SIGMA_I, _SIGMA_X, _SIGMA_Y, _SIGMA_Z]
 
 
-def generate_pauli(dim):
-    """Generate basis of Pauli matrices for `dim` qubits"""
+def generate_pauli(n_qubits):
+    """Generate basis of Pauli matrices for `n_qubits` qubits"""
     basis = _PAULI_1
-    for _ in range(dim - 1):
+    for _ in range(n_qubits - 1):
         basis = np.kron(basis, _PAULI_1)
     return basis
 

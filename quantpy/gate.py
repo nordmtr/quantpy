@@ -16,12 +16,12 @@ class Gate(BaseQuantum):
 
     Attributes
     ----------
-    dim : int
-        Number of qubits
     H : Gate (property)
         Adjoint matrix of the quantum gate
     matrix : numpy 2-D array (property)
         Matrix representation of the quantum gate
+    n_qubits : int
+        Number of qubits
     T : Gate (property)
         Transpose of the quantum gate
 
@@ -42,7 +42,7 @@ class Gate(BaseQuantum):
     """
     def __init__(self, data):
         self._matrix = np.array(data, dtype=np.complex128)
-        self.dim = int(np.log2(self._matrix.shape[0]))
+        self.n_qubits = int(np.log2(self._matrix.shape[0]))
 
     @property
     def matrix(self):
@@ -52,7 +52,7 @@ class Gate(BaseQuantum):
     @matrix.setter
     def matrix(self, data):
         self._matrix = np.array(data, dtype=np.complex128)
-        self.dim = int(np.log2(self._matrix.shape[0]))
+        self.n_qubits = int(np.log2(self._matrix.shape[0]))
 
     def transform(self, state):
         """Apply this gate to the state: U @ rho @ U.H"""
@@ -60,7 +60,7 @@ class Gate(BaseQuantum):
 
     def as_channel(self):
         """Return a channel representation of this gate"""
-        return Channel(self.transform, self.dim)
+        return Channel(self.transform, self.n_qubits)
 
     def __repr__(self):
         return 'Quantum gate\n' + repr(self.matrix)
