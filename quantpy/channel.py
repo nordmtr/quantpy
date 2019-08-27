@@ -11,30 +11,37 @@ class Channel(BaseQuantum):
 
     Parameters
     ----------
-    data : array-like
-        Matrix representation of a quantum gate
+    data : callable, array-like or Qobj
+        If callable, treated as a transformation function. `dim` argument is necessary in this case.
+        If array-like or Qobj, treated as a Choi matrix
+    dim : int or None, default=None (optional)
+        Number of qubits
 
     Attributes
     ----------
+    choi : Qobj (property)
+        Choi matrix of the channel
     dim : int
         Number of qubits
     H : Gate (property)
         Adjoint matrix of the quantum object
-    matrix : numpy 2-D array (property)
-        Matrix representation of a quantum gate
     T : Gate (property)
         Transpose of the quantum object
 
     Methods
     -------
-    copy()
-        Create a copy of this Gate instance
     conj()
         Conjugate of the quantum object
+    copy()
+        Create a copy of this Gate instance
     kron()
         Kronecker product of 2 Qobj instances
+    set_func()
+        Set a new channel via function
     trace()
         Trace of the quantum object
+    transform()
+        Apply this channel to a quantum state
     """
     def __init__(self, data, dim=None):
         self._types = set()
@@ -54,6 +61,7 @@ class Channel(BaseQuantum):
             raise ValueError('Invalid data format')
 
     def set_func(self, data, dim):
+        """Set a new transformation function that defines the channel"""
         self._types.add('func')
         self._types.discard('choi')
         self._func = data
@@ -61,6 +69,7 @@ class Channel(BaseQuantum):
 
     @property
     def choi(self):
+        """Choi matrix of the channel"""
         if 'choi' not in self._types:
             self._types.add('choi')
             self._choi = Qobj(np.zeros((4 ** self.dim, 4 ** self.dim), dtype=np.complex128))
@@ -78,6 +87,7 @@ class Channel(BaseQuantum):
         self.dim = int(np.log2(data.shape[0]) / 2)
 
     def transform(self, state):
+        """Apply this channel to the quantum state"""
         if not isinstance(state, Qobj):
             state = Qobj(state)
         if 'func' in self._types:

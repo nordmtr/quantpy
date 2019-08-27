@@ -29,10 +29,10 @@ class Gate(BaseQuantum):
     -------
     as_channel()
         Convert Gate to Channel
-    copy()
-        Create a copy of this Gate instance
     conj()
         Conjugate of the quantum gate
+    copy()
+        Create a copy of this Gate instance
     kron()
         Kronecker product of 2 Gate instances
     trace()
@@ -54,10 +54,12 @@ class Gate(BaseQuantum):
         self._matrix = np.array(data, dtype=np.complex128)
         self.dim = int(np.log2(self._matrix.shape[0]))
 
-    def transform(self, rho):
-        return Qobj((self @ rho @ self.H).matrix)
+    def transform(self, state):
+        """Apply this gate to the state: U @ rho @ U.H"""
+        return Qobj((self @ state @ self.H).matrix)
 
     def as_channel(self):
+        """Return a channel representation of this gate"""
         return Channel(self.transform, self.dim)
 
     def __repr__(self):

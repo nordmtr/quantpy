@@ -36,10 +36,10 @@ class Qobj(BaseQuantum):
 
     Methods
     -------
-    copy()
-        Create a copy of this Qobj instance
     conj()
         Conjugate of the quantum object
+    copy()
+        Create a copy of this Qobj instance
     eig()
         Eigenvalues and eigenvectors of the quantum object
     is_density_matrix()
