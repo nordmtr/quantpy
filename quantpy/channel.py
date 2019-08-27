@@ -7,6 +7,35 @@ from .routines import kron
 
 
 class Channel(BaseQuantum):
+    """Class for representing quantum gates
+
+    Parameters
+    ----------
+    data : array-like
+        Matrix representation of a quantum gate
+
+    Attributes
+    ----------
+    dim : int
+        Number of qubits
+    H : Gate (property)
+        Adjoint matrix of the quantum object
+    matrix : numpy 2-D array (property)
+        Matrix representation of a quantum gate
+    T : Gate (property)
+        Transpose of the quantum object
+
+    Methods
+    -------
+    copy()
+        Create a copy of this Gate instance
+    conj()
+        Conjugate of the quantum object
+    kron()
+        Kronecker product of 2 Qobj instances
+    trace()
+        Trace of the quantum object
+    """
     def __init__(self, data, dim=None):
         self._types = set()
         if callable(data):
@@ -23,12 +52,6 @@ class Channel(BaseQuantum):
             self.dim = int(np.log2(data.shape[0]) / 2)
         else:
             raise ValueError('Invalid data format')
-
-    # @property
-    # def func(self):
-    #     if 'func' not in self._types:
-    #         self._types.add('func')  # TODO: derive transformation using Choi matrix
-    #     return self._func
 
     def set_func(self, data, dim):
         self._types.add('func')
