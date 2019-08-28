@@ -1,12 +1,13 @@
 # QuantPy
 
-A framework for quantum computations and quantum tomography simulations. Supports basic mathematical operations on quantum states, as well as partial traces and tensor products, measurements, quantum state tomography and calculating confidence intervals for the experiments.
+A framework for quantum computations and quantum tomography simulations. Supports basic mathematical operations on quantum states, as well as partial traces and tensor products, measurements, quantum channels (aka CPTP maps), gates, quantum state tomography and calculating confidence intervals for the experiments.
 
 ## Table of contents
 
 - [Features](#features)
     - [Quantum state tomography](#quantum-state-tomography)
     - [Quantum objects](#quantum-objects)
+    - [Quantum channels and gates](#quantum-channels-and-gates)
 - [Installation](#installation)
 
 ## Features
@@ -64,6 +65,34 @@ rho.matrix = [
 print(rho.bloch)
 >>> [0.5 0. 0. 0.5]
 ```
+
+### Quantum channels and gates
+
+This package offers an ability to create quantum gates and channels, as well as a collection of standard ones (Pauli gates, Hadamard, phase etc.). Gates can be easily converted into channels.
+```python
+rho = qp.Qobj([0.5, 0, 0, 0.5])
+x_gate = qp.operator.X
+x_channel = x_gate.as_channel()
+rho_out = x_channel.transform(rho)
+print(rho_out.bloch)
+>>> array([0.5, 0, 0, 0.5])
+```
+Moreover, this package supports calculating Choi matrices and Kraus representations of quantum channels.
+```python
+channel = qp.Channel(lambda rho : qp.operator.Z @ rho @ qp.operator.Z, n_qubits=1)
+print(channel.choi)
+>>> Quantum object
+>>>  array([[ 1.+0.j,  0.+0.j,  0.+0.j, -1.+0.j],
+>>>        [ 0.+0.j,  0.+0.j,  0.+0.j,  0.+0.j],
+>>>        [ 0.+0.j,  0.+0.j,  0.+0.j,  0.+0.j],
+>>>        [-1.+0.j,  0.+0.j,  0.+0.j,  1.+0.j]])
+kraus = channel.kraus
+print(channel.kraus)
+>>> [Quantum Operator
+>>>  array([[-1.-0.j,  0.+0.j],
+>>>         [ 0.+0.j,  1.+0.j]])]
+```
+
 
 ## Installation
 
