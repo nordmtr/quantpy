@@ -91,8 +91,8 @@ def RY(theta):
 
 def RZ(theta):
     return Operator([
-        [np.exp(-theta/2), 0],
-        [0, np.exp(theta/2)],
+        [np.exp(-0.5j*theta), 0],
+        [0, np.exp(0.5j*theta)],
     ])
 
 

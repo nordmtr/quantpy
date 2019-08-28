@@ -25,7 +25,7 @@ def _make_feasible(qobj):
     EPS = 1e-15
     v, U = la.eigh(qobj.matrix)
     V = np.diag(np.maximum(EPS, v))  # positiveness
-    matrix = U @ V @ la.inv(U)
+    matrix = U @ V @ U.T.conj()
     return Qobj(matrix / np.trace(matrix))
 
 
