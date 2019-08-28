@@ -6,7 +6,7 @@ from .routines import _SIGMA_I, _SIGMA_X, _SIGMA_Y, _SIGMA_Z, _vec2mat
 
 
 class Operator(BaseQuantum):
-    """Class for representing quantum gates
+    """Class for representing quantum operators
 
     Parameters
     ----------
