@@ -1,7 +1,7 @@
 import numpy as np
 
 from .base_quantum import BaseQuantum
-from .operator import _choi_to_kraus
+from .operator import _choi_to_kraus, Z, Operator
 from .routines import generate_single_entries, kron
 from .qobj import Qobj, fully_mixed
 
@@ -13,6 +13,7 @@ class Channel(BaseQuantum):
     ----------
     data : callable, numpy 2-D array, Qobj or list
         If callable, treated as a transformation function. `n_qubits` argument is necessary in this case.
+            Note: using non-linear functions can lead to unpredictable results
         If numpy 2-D array or Qobj, treated as a Choi matrix
         If list, treated as Kraus representation
     n_qubits : int or None, default=None (optional)
@@ -67,7 +68,7 @@ class Channel(BaseQuantum):
             self._func = None
             self._kraus = data
             self._types.add('kraus')
-            self.n_qubits = int(np.log2(data[0].shape[0]))
+            self.n_qubits = data[0].n_qubits
         else:
             raise ValueError('Invalid data format')
 
@@ -139,6 +140,22 @@ class Channel(BaseQuantum):
 
 def depolarizing(p=1, n_qubits=1):
     """Depolarizing channel with probability `p`
-    E(rho) = p * Id / (2^n_qubits) + (1-p) * rho
+    rho -> p * Id / (2^n_qubits) + (1-p) * rho
     """
-    return Channel(lambda rho: p * rho.trace * fully_mixed(n_qubits) + (1 - p) * rho, n_qubits)
+    return Channel(lambda rho: p * rho.trace() * fully_mixed(n_qubits) + (1 - p) * rho, n_qubits)
+
+
+def dephasing(p=1, n_qubits=1):
+    """Dephasing channel with probability `p`
+    rho -> (1-p) * rho + p * Z @ rho @ Z
+    """
+    return Channel(lambda rho: p * Z.transform(rho) + (1-p) * rho, n_qubits)
+
+
+def amplitude_damping(gamma):
+    """Amplitude damping channel with probability of decay `gamma`"""
+    kraus_list = [
+        np.sqrt(gamma) * Operator([[0, 1], [0, 0]]),
+        Operator([[1, 0], [0, 0]]) + np.sqrt(1-gamma) * Operator([[0, 0], [0, 1]])
+    ]
+    return Channel(kraus_list)

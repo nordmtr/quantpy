@@ -8,7 +8,7 @@ from .base_quantum import BaseQuantum
 
 
 class Qobj(BaseQuantum):
-    """Basic class for representing quantum objects, such as quantum states and operators
+    """Basic class for representing quantum objects, such as quantum states and measurement operators
 
     This class supports all simple math operations, as well as a collection of common
     state/operator operations.
