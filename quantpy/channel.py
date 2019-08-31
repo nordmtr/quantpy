@@ -3,7 +3,7 @@ import numpy as np
 from .base_quantum import BaseQuantum
 from .operator import _choi_to_kraus
 from .routines import generate_single_entries, kron
-from .qobj import Qobj
+from .qobj import Qobj, fully_mixed
 
 
 class Channel(BaseQuantum):
@@ -135,3 +135,10 @@ class Channel(BaseQuantum):
 
     def __repr__(self):
         return 'Quantum channel w Choi matrix\n' + repr(self.choi.matrix)
+
+
+def depolarizing(p=1, n_qubits=1):
+    """Depolarizing channel with probability `p`
+    E(rho) = p * Id / (2^n_qubits) + (1-p) * rho
+    """
+    return Channel(lambda rho: p * rho.trace * fully_mixed(n_qubits) + (1 - p) * rho, n_qubits)

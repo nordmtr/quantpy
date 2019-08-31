@@ -189,3 +189,8 @@ class Qobj(BaseQuantum):
 
     def __repr__(self):
         return 'Quantum object\n' + repr(self.matrix)
+
+
+def fully_mixed(n_qubits=1):
+    dim = 2 ** n_qubits
+    return Qobj(np.eye(dim) / dim)
