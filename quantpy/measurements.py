@@ -13,6 +13,7 @@ def generate_measurement_matrix(POVM='proj', n_qubits=1):
 
         Possible strings:
             'proj' -- orthogonal projective measurement, 6^n_qubits rows
+            'proj4' -- same as `proj`, but without |-> and |-i> states
             'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^n_qubits rows
 
         Possible numpy arrays:
@@ -36,6 +37,12 @@ def generate_measurement_matrix(POVM='proj', n_qubits=1):
             y_neg = np.array([1, 0, -1, 0])
             z_neg = np.array([1, 0, 0, -1])
             POVM_1 = np.array([x_pos, x_neg, y_pos, y_neg, z_pos, z_neg]) / 6
+        elif POVM == 'proj4':
+            x_pos = np.array([1, 1, 0, 0])
+            y_pos = np.array([1, 0, 1, 0])
+            z_pos = np.array([1, 0, 0, 1])
+            z_neg = np.array([1, 0, 0, -1])
+            POVM_1 = np.array([x_pos, y_pos, z_pos, z_neg]) / 4
         elif POVM == 'sic':
             sq3 = 1 / np.sqrt(3)
             a0 = np.array([1, sq3, sq3, sq3])

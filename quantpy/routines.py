@@ -20,8 +20,9 @@ def generate_pauli(n_qubits):
     return basis
 
 
-def generate_single_entries(dim):
-    """Generate all matrices with shape dim * dim with single entries"""
+def generate_single_entries(dim, to_qobj=False):
+    """Generate all matrices with shape dim * dim with single entries.
+    If `to_qobj` is True, return Qobj instead of numpy arrays"""
     list_of_single_entries = []
     for i in range(dim):
         for j in range(dim):

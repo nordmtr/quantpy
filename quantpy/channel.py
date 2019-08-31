@@ -156,6 +156,6 @@ def amplitude_damping(gamma):
     """Amplitude damping channel with probability of decay `gamma`"""
     kraus_list = [
         np.sqrt(gamma) * Operator([[0, 1], [0, 0]]),
-        Operator([[1, 0], [0, 0]]) + np.sqrt(1-gamma) * Operator([[0, 0], [0, 1]])
+        Operator([[1, 0], [0, 0]]) + np.sqrt(1-gamma) * Operator([[0, 0], [0, 1]]),
     ]
     return Channel(kraus_list)
