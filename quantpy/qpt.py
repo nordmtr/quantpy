@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as la
 
 from .geometry import hs_dst, if_dst, trace_dst, product
+from .routines import generate_single_entries
 from .qobj import Qobj
 from .channel import Channel
 from .tomography import Tomograph
@@ -23,10 +24,10 @@ class ProcessTomograph:
                 raise ValueError('Invalid value for argument `dst`')
         else:
             self.dst = dst
-        self.input_states_list = _generate_input_states(input_states)
-        if len(self.input_states_list) != 4 ** self.input_states_list[0].n_qubits:
+        self.input_states_basis = Basis(_generate_input_states(input_states))
+        if self.input_states_basis.dim != 4 ** self.input_states_basis.elements[0].n_qubits:
             raise ValueError('Input states do not constitute a basis')
-        self._decomposed_single_entries = _decompose_se(self.input_states_list)
+        self._decomposed_single_entries = np.array([])
 
     def experiment(self, n_measurements, POVM='proj', method='lin', physical=True, init='lin'):
         output_states = []
