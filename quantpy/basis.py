@@ -11,17 +11,22 @@ class Basis:
     ----------
     elements : array-like
         Basis elements
-    inner_product : callable, default: hermitian trace product in the matrix space
+    inner_product : str or callable, default='trace'
         Inner product in the Euclidean space
+        If 'trace', sets hermitian trace product in the matrix space as an inner product
+            (A, B) = Tr(A @ B.H)
     """
-    def __init__(self, elements, inner_product=product):
+    def __init__(self, elements, inner_product='trace'):
         self.elements = elements
         self.dim = len(elements)
         self.gram = np.zeros((self.dim, self.dim), dtype=np.complex128)
-        self.inner_product = inner_product
+        if inner_product == 'trace':
+            self.inner_product = product
+        else:
+            self.inner_product = inner_product
         for i in range(self.dim):
             for j in range(self.dim):
-                self.gram[i, j] = inner_product(self.elements[i], self.elements[j])
+                self.gram[i, j] = self.inner_product(self.elements[i], self.elements[j])
 
     def decompose(self, obj):
         """Return a decomposition of the obj"""

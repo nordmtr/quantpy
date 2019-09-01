@@ -66,7 +66,7 @@ class Channel(BaseQuantum):
             self._func = None
             self._kraus = None
             self._types.add('choi')
-            self.n_qubits = self._choi.n_qubits / 2
+            self.n_qubits = int(self._choi.n_qubits / 2)
         elif isinstance(data, list):
             self._choi = None
             self._func = None
