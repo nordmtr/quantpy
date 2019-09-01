@@ -24,10 +24,6 @@ class BaseQuantum(ABC):
         """Conjugate of the quantum object"""
         return self.__class__(self.matrix.conj())
 
-    def trace(self):
-        """Trace of the quantum object"""
-        return np.trace(self.matrix)
-
     def copy(self):
         """Create a copy of this instance"""
         return deepcopy(self)

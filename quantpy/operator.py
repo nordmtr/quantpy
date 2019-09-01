@@ -66,6 +66,10 @@ class Operator(BaseQuantum):
         from .channel import Channel
         return Channel(self.transform, self.n_qubits)
 
+    def trace(self):
+        """Trace of the quantum object"""
+        return np.trace(self.matrix)
+
     def __repr__(self):
         return 'Quantum Operator\n' + repr(self.matrix)
 

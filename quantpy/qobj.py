@@ -185,6 +185,10 @@ class Qobj(BaseQuantum):
             print('Trace is not 1', file=sys.stderr)
         return False
 
+    def trace(self):
+        """Trace of the quantum object"""
+        return np.trace(self.matrix)
+
     def is_pure(self):
         """Check if the quantum object is a valid rank-1 density matrix"""
         return (np.linalg.matrix_rank(self.matrix, tol=1e-10, hermitian=True) == 1) and self.is_density_matrix()
