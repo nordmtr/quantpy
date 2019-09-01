@@ -2,6 +2,8 @@ import sys
 import numpy as np
 import scipy.linalg as la
 
+from copy import deepcopy
+
 from .geometry import product
 from .routines import generate_pauli, _density
 from .base_quantum import BaseQuantum
@@ -70,10 +72,10 @@ class Qobj(BaseQuantum):
     """
 
     def __init__(self, data=None, is_ket=False):
-        self._types = set()  # Set of types which represent the state
-        if isinstance(data, Qobj):
-            self = data.copy()
+        if isinstance(data, self.__class__):
+            self.__dict__ = deepcopy(data.__dict__)
         elif data is not None:
+            self._types = set()  # Set of types which represent the state
             if is_ket:
                 data = _density(data)
             data = np.array(data)

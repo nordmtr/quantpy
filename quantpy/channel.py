@@ -1,5 +1,7 @@
 import numpy as np
 
+from copy import deepcopy
+
 from .base_quantum import BaseQuantum
 from .operator import _choi_to_kraus, Z, Operator
 from .routines import generate_single_entries, kron
@@ -49,7 +51,9 @@ class Channel(BaseQuantum):
     """
     def __init__(self, data, n_qubits=None):
         self._types = set()
-        if callable(data):
+        if isinstance(data, self.__class__):
+            self.__dict__ = deepcopy(data.__dict__)
+        elif callable(data):
             self._choi = None
             self._kraus = None
             self._func = data
@@ -62,7 +66,7 @@ class Channel(BaseQuantum):
             self._func = None
             self._kraus = None
             self._types.add('choi')
-            self.n_qubits = int(np.log2(data.shape[0]) / 2)
+            self.n_qubits = self._choi.n_qubits / 2
         elif isinstance(data, list):
             self._choi = None
             self._func = None

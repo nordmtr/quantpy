@@ -1,5 +1,7 @@
 import numpy as np
 
+from copy import deepcopy
+
 from .base_quantum import BaseQuantum
 from .qobj import Qobj
 from .routines import _SIGMA_I, _SIGMA_X, _SIGMA_Y, _SIGMA_Z, _vec2mat
@@ -40,6 +42,8 @@ class Operator(BaseQuantum):
         Apply this operator to a quantum state
     """
     def __init__(self, data):
+        if isinstance(data, self.__class__):
+            self.__dict__ = deepcopy(data.__dict__)
         self._matrix = np.array(data, dtype=np.complex128)
         self.n_qubits = int(np.log2(self._matrix.shape[0]))
 
