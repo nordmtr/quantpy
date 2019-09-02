@@ -33,10 +33,10 @@ class BaseQuantum(ABC):
         return self.__class__(np.kron(self.matrix, other.matrix))
 
     def __eq__(self, other):
-        return self.matrix == other.matrix
+        return np.array_equal(self.matrix, other.matrix)
 
     def __ne__(self, other):
-        return self.matrix != other.matrix
+        return not np.array_equal(self.matrix, other.matrix)
 
     def __neg__(self):
         return self.__class__(-self.matrix)

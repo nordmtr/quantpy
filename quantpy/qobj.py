@@ -125,7 +125,8 @@ class Qobj(BaseQuantum):
     def bloch(self, data):
         if isinstance(data, list):
             data = np.array(data)
-        self._type = 'bloch'
+        self._types.add('bloch')
+        self._types.discard('matrix')
         self._bloch = np.array(data)
 
     def ptrace(self, keep=[0]):

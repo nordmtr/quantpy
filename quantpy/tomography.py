@@ -9,9 +9,8 @@ from .routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_mat
 
 
 def _is_positive(bloch_vec):  # works only for 1-qubit systems !!
-    """Positivity constraint for minimize function based on the trace condition"""
-    bloch_len = len(bloch_vec) + 1  # 4 ** n_qubits
-    return np.sqrt(bloch_len) - 1 - bloch_len * np.sum(bloch_vec ** 2)
+    """Positivity constraint for minimize function based on the bloch vector norm"""
+    return 0.5 - la.norm(bloch_vec, ord=2)
 
 
 def _is_unit_trace(tril_vec):
@@ -30,8 +29,10 @@ def _make_feasible(qobj):
 
 
 def _make_feasible_bloch(qobj):  # works only for 1-qubit systems !!
-    bloch_vec = qobj.bloch
-    bloch_vec[1:] *= 0.5 / la.norm(qobj.bloch[1:], ord=2)
+    bloch_vec = qobj.bloch.copy()
+    bloch_norm = la.norm(bloch_vec[1:], ord=2)
+    if bloch_norm > 0.5:
+        bloch_vec[1:] *= 0.5 / bloch_norm
     bloch_vec[0] = 0.5
     return Qobj(bloch_vec)
 
@@ -174,15 +175,13 @@ class Tomograph:
             raise ValueError('Invalid value for argument `method`')
         return self.reconstructed_state
 
-    def bootstrap(self, n_measurements, n_boot, est_method='lin', physical=True, init='lin',
+    def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin',
                   use_new_estimate=False, state=None, kind='estim'):
-        """Perform multiple tomography simulation on the preferred state.
-        Count the distances to the bootstrapped states.
+        """Perform multiple tomography simulation on the preferred state with the same measurements number
+        and POVM matrix, as in the preceding experiment. Count the distances to the bootstrapped states.
 
         Parameters
         ----------
-        n_measurements : int
-            Number of measurements to perform in each experiment
         n_boot : int
             Number of experiments to perform
         est_method : str, default='lin'
@@ -215,7 +214,7 @@ class Tomograph:
         dist = [0]
         boot_tmg = self.__class__(state, self.dst)
         for _ in range(n_boot):
-            boot_tmg.experiment(n_measurements, POVM=self.POVM_matrix)
+            boot_tmg.experiment(self.n_measurements, POVM=self.POVM_matrix)
             rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init)
             if kind == 'estim':
                 dist.append(self.dst(rho, state))
@@ -223,6 +222,8 @@ class Tomograph:
                 dist.append(self.dst(rho, self.state))
             elif kind == 'triangle':
                 dist.append(self.dst(rho, state) + self.dst(state, self.state))
+            else:
+                raise ValueError('Invalid value for argument `kind`')
         dist.sort()
         return dist
 
@@ -231,7 +232,7 @@ class Tomograph:
         bloch_vec = _left_inv(self.POVM_matrix) @ frequencies / (2 ** self.state.n_qubits)
         rho = Qobj(bloch_vec)
         if physical:
-            rho = _make_feasible(rho)
+            rho = _make_feasible_bloch(rho)
         return rho
 
     def _point_estimate_mle_chol(self, init):
