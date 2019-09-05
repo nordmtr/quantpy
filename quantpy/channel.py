@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 
 from copy import deepcopy
@@ -38,6 +39,8 @@ class Channel(BaseQuantum):
         Channel with conjugated Choi matrix
     copy()
         Create a copy of this Gate instance
+    is_cptp()
+        Check if channel is completely positive and trace-preserving
     kraus()
         Kraus representation of the channel
     kron()
@@ -135,6 +138,21 @@ class Channel(BaseQuantum):
             common_state = kron(state.T, Qobj(np.eye(2 ** self.n_qubits)))
             output_state = (common_state @ self.choi).ptrace(list(range(self.n_qubits, 2 * self.n_qubits)))
         return output_state
+
+    def is_cptp(self, atol=1e-5):
+        """Check if channel is trace-preserving and completely positive
+        `atol` param sets absolute tolerance level for the comparison.
+        See :ref:`numpy.allclose` for detailed documentation."""
+        rho_in = self.choi.ptrace(list(range(self.n_qubits)))
+        tp_flag = np.allclose(rho_in.matrix, np.eye(2 ** rho_in.n_qubits), atol=atol)
+        cp_flag = np.allclose(np.minimum(np.real(self.choi.eig()[0]), 0), 0, atol=atol)
+        if tp_flag and cp_flag:
+            return True
+        if not tp_flag:
+            print('Not trace-preserving', file=sys.stderr)
+        if not cp_flag:
+            print('Not completely positive', file=sys.stderr)
+        return False
 
     @property
     def T(self):

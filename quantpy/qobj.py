@@ -176,7 +176,7 @@ class Qobj(BaseQuantum):
         Alert the user about violations of the specific properties.
         """
         herm_flag = np.allclose(self.matrix, self.matrix.T.conj())
-        pos_flag = np.allclose(np.minimum(np.real(la.eigvals(self.matrix)), 0), 0)
+        pos_flag = np.allclose(np.minimum(np.real(self.eig()[0]), 0), 0)
         trace_flag = np.allclose(np.trace(self.matrix), 1)
         if herm_flag and pos_flag and trace_flag:
             return True
@@ -198,8 +198,7 @@ class Qobj(BaseQuantum):
 
     def is_pure(self):
         """Check if the quantum object is a valid rank-1 density matrix"""
-        EPS = 1e-12
-        return self.impurity() < EPS and self.is_density_matrix()
+        return np.allclose(self.impurity(), 0) and self.is_density_matrix()
 
     def __repr__(self):
         return 'Quantum object\n' + repr(self.matrix)

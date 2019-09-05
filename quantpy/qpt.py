@@ -14,7 +14,7 @@ from .basis import Basis
 def _tp_constraint(tril_vec):
     choi_matrix = Qobj(_real_tril_vec_to_matrix(tril_vec))
     rho_in = choi_matrix.ptrace(list(range(choi_matrix.n_qubits // 2)))
-    return hs_dst(rho_in, np.eye(2 ** rho_in.n_qubits))
+    return hs_dst(rho_in.matrix, np.eye(2 ** rho_in.n_qubits))
 
 
 class ProcessTomograph:
