@@ -1,12 +1,20 @@
 import numpy as np
 
+from scipy.optimize import minimize
+
 from .geometry import hs_dst, if_dst, trace_dst
-from .routines import generate_single_entries, kron
-from .qobj import Qobj
+from .routines import generate_single_entries, kron, _real_tril_vec_to_matrix, _matrix_to_real_tril_vec
+from .qobj import Qobj, fully_mixed
 from .channel import Channel, depolarizing
 from .tomography import Tomograph
 from .measurements import generate_measurement_matrix
 from .basis import Basis
+
+
+def _tp_constraint(tril_vec):
+    choi_matrix = Qobj(_real_tril_vec_to_matrix(tril_vec))
+    rho_in = choi_matrix.ptrace(list(range(choi_matrix.n_qubits // 2)))
+    return hs_dst(rho_in, np.eye(2 ** rho_in.n_qubits))
 
 
 class ProcessTomograph:
@@ -110,7 +118,7 @@ class ProcessTomograph:
         for tmg in self.tomographs:
             tmg.experiment(n_measurements, POVM)
 
-    def point_estimate(self, method='lin', physical=True, init='lin'):
+    def point_estimate(self, method='lin', physical=True, init='lin', cptp=True):
         """Reconstruct a Choi matrix from the data obtained in the experiment
 
         Parameters
@@ -136,9 +144,12 @@ class ProcessTomograph:
                 'lin' -- uses linear inversion point estimate as initial guess
                 'mixed' -- uses fully mixed state as initial guess
 
+        cptp : bool, default=True
+            If True, return a projection onto CPTP space.
+
         Returns
         -------
-        reconstructed_state : Qobj
+        reconstructed_channel : Channel
         """
         output_states = [
             tmg.point_estimate(method, physical, init) for tmg in self.tomographs
@@ -149,6 +160,17 @@ class ProcessTomograph:
             single_entry = self.input_basis.compose(decomposed_single_entry)
             transformed_single_entry = output_basis.compose(decomposed_single_entry)
             choi_matrix += kron(single_entry, transformed_single_entry)
+        if cptp:
+            x0 = fully_mixed(choi_matrix.n_qubits).matrix
+            x0 = _matrix_to_real_tril_vec(x0)
+            constraints = [
+                {'type': 'eq', 'fun': _tp_constraint},
+            ]
+            opt_res = minimize(
+                lambda x: hs_dst(choi_matrix, _real_tril_vec_to_matrix(x)),
+                x0, constraints=constraints, method='SLSQP'
+            )
+            choi_matrix = _real_tril_vec_to_matrix(opt_res.x)
         self.reconstructed_channel = Channel(choi_matrix)
         return self.reconstructed_channel
 
