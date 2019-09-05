@@ -48,6 +48,8 @@ class Qobj(BaseQuantum):
         Check if the quantum object is valid density matrix
     is_pure()
         Check if the quantum object is rank-1 valid density matrix
+    impurity()
+        Return impurity measure 1-Tr(rho^2)
     kron()
         Kronecker product of 2 Qobj instances
     ptrace()
@@ -190,9 +192,14 @@ class Qobj(BaseQuantum):
         """Trace of the quantum object"""
         return np.trace(self.matrix)
 
+    def impurity(self):
+        """Return impurity measure 1-Tr(rho^2)"""
+        return 1 - (self @ self).trace()
+
     def is_pure(self):
         """Check if the quantum object is a valid rank-1 density matrix"""
-        return (np.linalg.matrix_rank(self.matrix, tol=1e-10, hermitian=True) == 1) and self.is_density_matrix()
+        EPS = 1e-12
+        return self.impurity() < EPS and self.is_density_matrix()
 
     def __repr__(self):
         return 'Quantum object\n' + repr(self.matrix)
