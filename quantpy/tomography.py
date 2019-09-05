@@ -48,7 +48,7 @@ class Tomograph:
     state : Qobj
         Quantum object to perform a tomography on
     dst : str or callable, default='hs'
-        Sets a measure in a space of quantum objects
+        Measure in a space of quantum objects
 
         Possible strings:
             'hs' -- Hilbert-Schmidt distance
@@ -74,7 +74,7 @@ class Tomograph:
     Methods
     -------
     bootstrap()
-        Perform multiple tomography simulation on the preferred state
+        Perform multiple tomography simulation
     experiment()
         Simulate a real quantum state tomography
     point_estimate()
@@ -232,7 +232,7 @@ class Tomograph:
         bloch_vec = _left_inv(self.POVM_matrix) @ frequencies / (2 ** self.state.n_qubits)
         rho = Qobj(bloch_vec)
         if physical:
-            rho = _make_feasible_bloch(rho)
+            rho = _make_feasible(rho)
         return rho
 
     def _point_estimate_mle_chol(self, init):
