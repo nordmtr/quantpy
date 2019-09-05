@@ -3,7 +3,7 @@ import scipy.linalg as la
 from scipy.optimize import minimize
 
 from .geometry import hs_dst, if_dst, trace_dst
-from .qobj import Qobj
+from .qobj import Qobj, fully_mixed
 from .measurements import generate_measurement_matrix
 from .routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix
 
@@ -29,6 +29,7 @@ def _make_feasible(qobj):
 
 
 def _make_feasible_bloch(qobj):  # works only for 1-qubit systems !!
+    """Normalize the Bloch vector if it is outside the Bloch sphere"""
     bloch_vec = qobj.bloch.copy()
     bloch_norm = la.norm(bloch_vec[1:], ord=2)
     if bloch_norm > 0.5:
@@ -228,6 +229,7 @@ class Tomograph:
         return dist
 
     def _point_estimate_lin(self, physical):
+        """Point estimate based on linear inversion algorithm"""
         frequencies = self.results / self.results.sum()
         bloch_vec = _left_inv(self.POVM_matrix) @ frequencies / (2 ** self.state.n_qubits)
         rho = Qobj(bloch_vec)
@@ -236,8 +238,9 @@ class Tomograph:
         return rho
 
     def _point_estimate_mle_chol(self, init):
+        """Point estimate based on MLE with Cholesky parametrization"""
         if init == 'mixed':
-            x0 = np.eye(2 ** self.state.n_qubits) / (2 ** self.state.n_qubits)  # fully mixed state
+            x0 = fully_mixed(self.state.n_qubits).matrix
         elif init == 'lin':
             x0 = self.point_estimate('lin').matrix
         else:
@@ -248,6 +251,7 @@ class Tomograph:
         return Qobj(matrix / np.trace(matrix))
 
     def _neg_log_likelihood_chol(self, tril_vec):
+        """Negative log-likelihood for MLE with Cholesky parametrization"""
         EPS = 1e-10
         matrix = _real_tril_vec_to_matrix(tril_vec)
         rho = Qobj(matrix / np.trace(matrix))
@@ -256,11 +260,12 @@ class Tomograph:
         return -log_likelihood
 
     def _point_estimate_mle_chol_constr(self, init):
+        """Point estimate based on constrained MLE with Cholesky parametrization"""
         constraints = [
             {'type': 'eq', 'fun': _is_unit_trace},
         ]
         if init == 'mixed':
-            x0 = np.eye(2 ** self.state.n_qubits) / (2 ** self.state.n_qubits)  # fully mixed state
+            x0 = fully_mixed(self.state.n_qubits).matrix
         elif init == 'lin':
             x0 = self.point_estimate('lin').matrix
         else:
@@ -271,6 +276,7 @@ class Tomograph:
         return Qobj(matrix / np.trace(matrix))
 
     def _neg_log_likelihood_chol_constr(self, tril_vec):
+        """Negative log-likelihood for constrained MLE with Cholesky parametrization"""
         EPS = 1e-10
         rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
         probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
@@ -278,6 +284,7 @@ class Tomograph:
         return -log_likelihood
 
     def _point_estimate_mle_bloch(self, physical):  # works only for 1-qubit systems
+        """Point estimate based on MLE with Bloch parametrization"""
         constraints = [
             {'type': 'ineq', 'fun': _is_positive},
         ]
@@ -290,6 +297,7 @@ class Tomograph:
         return rho
 
     def _neg_log_likelihood_bloch(self, bloch_vec):
+        """Negative log-likelihood for MLE with Bloch parametrization"""
         EPS = 1e-10
         bloch_vec = np.append(1 / 2 ** self.state.n_qubits, bloch_vec)
         probas = self.POVM_matrix @ bloch_vec * (2 ** self.state.n_qubits)
