@@ -100,16 +100,28 @@ class Channel(BaseQuantum):
         self._types.discard('kraus')
         if not isinstance(data, Qobj):
             data = Qobj(data)
+        elif not isinstance(data, np.ndarray):
+            raise ValueError('Invalid data format')
         self._choi = data
         self.n_qubits = int(np.log2(data.shape[0]) / 2)
         self._types.add('choi')
 
     @property
     def kraus(self):
+        """Kraus representation of the channel"""
         if 'kraus' not in self._types:
             self._kraus = _choi_to_kraus(self.choi)
             self._types.add('kraus')
         return self._kraus
+
+    @kraus.setter
+    def kraus(self, data):
+        self._types.discard('func')
+        self._types.discard('choi')
+        if not isinstance(data, list):
+            raise ValueError('Invalid data format')
+        self._kraus = data
+        self.n_qubits = data[0].n_qubits
 
     def transform(self, state):
         """Apply this channel to the quantum state"""
