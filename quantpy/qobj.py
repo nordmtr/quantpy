@@ -170,7 +170,7 @@ class Qobj(BaseQuantum):
         """
         return la.eig(self.matrix)
 
-    def is_density_matrix(self):
+    def is_density_matrix(self, verbose=True):
         """Check if the quantum object is a valid density matrix.
         Perform a test for hermiticity, positive semi-definiteness and unit trace.
         Alert the user about violations of the specific properties.
@@ -180,11 +180,11 @@ class Qobj(BaseQuantum):
         trace_flag = np.allclose(np.trace(self.matrix), 1)
         if herm_flag and pos_flag and trace_flag:
             return True
-        if not herm_flag:
+        if not herm_flag and verbose:
             print('Non-hermitian', file=sys.stderr)
-        if not pos_flag:
+        if not pos_flag and verbose:
             print('Non-positive', file=sys.stderr)
-        if not trace_flag:
+        if not trace_flag and verbose:
             print('Trace is not 1', file=sys.stderr)
         return False
 

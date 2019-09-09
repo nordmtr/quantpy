@@ -38,7 +38,7 @@ def _make_feasible_bloch(qobj):  # works only for 1-qubit systems !!
     return Qobj(bloch_vec)
 
 
-class Tomograph:
+class StateTomograph:
     """Basic class for quantum state tomography
 
     This class supports experiment simulations, different methods of reconstructing a density matrix

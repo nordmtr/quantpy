@@ -139,7 +139,7 @@ class Channel(BaseQuantum):
             output_state = (common_state @ self.choi).ptrace(list(range(self.n_qubits, 2 * self.n_qubits)))
         return output_state
 
-    def is_cptp(self, atol=1e-5):
+    def is_cptp(self, atol=1e-5, verbose=True):
         """Check if channel is trace-preserving and completely positive
         `atol` param sets absolute tolerance level for the comparison.
         See :ref:`numpy.allclose` for detailed documentation."""
@@ -148,9 +148,9 @@ class Channel(BaseQuantum):
         cp_flag = np.allclose(np.minimum(np.real(self.choi.eig()[0]), 0), 0, atol=atol)
         if tp_flag and cp_flag:
             return True
-        if not tp_flag:
+        if not tp_flag and verbose:
             print('Not trace-preserving', file=sys.stderr)
-        if not cp_flag:
+        if not cp_flag and verbose:
             print('Not completely positive', file=sys.stderr)
         return False
 

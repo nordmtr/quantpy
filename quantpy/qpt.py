@@ -6,7 +6,7 @@ from .geometry import hs_dst, if_dst, trace_dst
 from .routines import generate_single_entries, kron, _real_tril_vec_to_matrix, _matrix_to_real_tril_vec
 from .qobj import Qobj, fully_mixed
 from .channel import Channel, depolarizing
-from .tomography import Tomograph
+from .tomography import StateTomograph
 from .measurements import generate_measurement_matrix
 from .basis import Basis
 
@@ -50,7 +50,7 @@ class ProcessTomograph:
     reconstructed_channel : Channel
         The most recent estimation of a channel, if ever performed
     tomographs : list
-        List of Tomograph objects corresponding to each input state
+        List of StateTomograph objects corresponding to each input state
 
     Methods
     -------
@@ -113,7 +113,7 @@ class ProcessTomograph:
             self.tomographs = []
             for input_state in self.input_basis.elements:
                 output_state_true = self.channel.transform(input_state)
-                tmg = Tomograph(output_state_true)
+                tmg = StateTomograph(output_state_true)
                 self.tomographs.append(tmg)
         for tmg in self.tomographs:
             tmg.experiment(n_measurements, POVM)
@@ -161,7 +161,7 @@ class ProcessTomograph:
             transformed_single_entry = output_basis.compose(decomposed_single_entry)
             choi_matrix += kron(single_entry, transformed_single_entry)
         self.reconstructed_channel = Channel(choi_matrix)
-        if cptp and not self.reconstructed_channel.is_cptp():
+        if cptp and not self.reconstructed_channel.is_cptp(verbose=False):
             x0 = fully_mixed(choi_matrix.n_qubits).matrix
             x0 = _matrix_to_real_tril_vec(x0)
             constraints = [

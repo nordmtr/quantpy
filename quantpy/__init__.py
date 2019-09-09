@@ -14,7 +14,7 @@ from .routines import (
 from .measurements import (
     generate_measurement_matrix,
 )
-from .tomography import Tomograph
+from .tomography import StateTomograph
 from .channel import Channel
 from .base_quantum import BaseQuantum
 from .operator import Operator
