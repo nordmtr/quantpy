@@ -5,36 +5,13 @@ A framework for quantum computations and quantum tomography simulations. Support
 ## Table of contents
 
 - [Features](#features)
-    - [Quantum state tomography](#quantum-state-tomography)
     - [Quantum objects](#quantum-objects)
     - [Quantum channels and gates](#quantum-channels-and-gates)
+    - [Quantum state tomography](#quantum-state-tomography)
+    - [Quantum process tomography](#quantum-process-tomography)
 - [Installation](#installation)
 
 ## Features
-
-### Quantum state tomography
-
-With this framework it is easy to perform simulations of quantum measurements and then use the results of these simulations to reconstruct the state using different methods.
-```python
-import quantpy as qp
-
-
-rho = qp.Qobj([1, 0], is_ket=True)
-tmg = qp.Tomograph(rho)
-tmg.experiment(10000)  # specify the number of simulations
-rho_lin = tmg.point_estimate('lin')  # linear inversion
-rho_mle = tmg.point_estimate('mle')  # maximum likelihood estimation
-```
-
-The design of the framework also allows for adaptive experiments -- it is possible to continue simulations with different measurement matrices after obtaining an interim estimate of the quantum state.
-```python
-tmg.experiment(10000)
-rho_est = tmg.point_estimate()
-new_POVM = my_adaptive_func(rho_est)
-tmg.experiment(10000, POVM=new_POVM, warm_start=True)
-```
-
-Moreover, you can calculate confidence intervals for these reconstructed states using built-in bootstrap functions.
 
 ### Quantum objects
 
@@ -93,6 +70,33 @@ print(channel.kraus)
 >>>         [ 0.+0.j,  1.+0.j]])]
 ```
 
+### Quantum state tomography
+
+With this framework it is easy to perform simulations of quantum measurements and then use the results of these simulations to reconstruct the state using different methods.
+```python
+import quantpy as qp
+
+
+rho = qp.Qobj([1, 0], is_ket=True)
+tmg = qp.StateTomograph(rho)
+tmg.experiment(10000)  # specify the number of simulations
+rho_lin = tmg.point_estimate('lin')  # linear inversion
+rho_mle = tmg.point_estimate('mle')  # maximum likelihood estimation
+```
+
+The design of the framework also allows for adaptive experiments -- it is possible to continue simulations with different measurement matrices after obtaining an interim estimate of the quantum state.
+```python
+tmg.experiment(10000)
+rho_est = tmg.point_estimate()
+new_POVM = my_adaptive_func(rho_est)
+tmg.experiment(10000, POVM=new_POVM, warm_start=True)
+```
+
+Moreover, you can calculate confidence intervals for these reconstructed states using built-in bootstrap functions.
+
+### Quantum process tomography
+
+You can likewise perform quantum tomography of channels, as well as build confidence intervals by choosing a set of states, transforming them with channel and performing tomography on these output states. 
 
 ## Installation
 
