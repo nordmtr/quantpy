@@ -160,7 +160,8 @@ class ProcessTomograph:
             single_entry = self.input_basis.compose(decomposed_single_entry)
             transformed_single_entry = output_basis.compose(decomposed_single_entry)
             choi_matrix += kron(single_entry, transformed_single_entry)
-        if cptp:
+        self.reconstructed_channel = Channel(choi_matrix)
+        if cptp and not self.reconstructed_channel.is_cptp():
             x0 = fully_mixed(choi_matrix.n_qubits).matrix
             x0 = _matrix_to_real_tril_vec(x0)
             constraints = [
@@ -175,7 +176,7 @@ class ProcessTomograph:
         return self.reconstructed_channel
 
     def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin',
-                  use_new_estimate=False, channel=None, kind='estim'):
+                  use_new_estimate=False, channel=None, kind='estim', cptp=True):
         """Perform multiple tomography simulation on the preferred channel with the same measurements number
         and POVM matrix, as in the preceding experiment. Count the distances to the bootstrapped Choi matrices.
 
@@ -204,17 +205,19 @@ class ProcessTomograph:
                 'target' -- CI for the target channel built with bootstrap from point estimate only
                 'triangle' -- CI for the target channel built with bootstrap from point estimate only
                               + triangle inequality
+        cptp : bool, default=True
+            If True, all bootstrap samples are projected onto CPTP space
         """
         if not use_new_estimate:
             channel = self.reconstructed_channel
         elif channel is None:
-            channel = self.point_estimate(method=est_method, physical=physical, init=init)
+            channel = self.point_estimate(method=est_method, physical=physical, init=init, cptp=cptp)
 
         dist = [0]
         boot_tmg = self.__class__(channel, self.input_states, self.dst)
         for _ in range(n_boot):
             boot_tmg.experiment(self.tomographs[0].n_measurements, POVM=self.tomographs[0].POVM_matrix)
-            estim_channel = boot_tmg.point_estimate(method=est_method, physical=physical, init=init)
+            estim_channel = boot_tmg.point_estimate(method=est_method, physical=physical, init=init, cptp=cptp)
             if kind == 'estim':
                 dist.append(self.dst(estim_channel.choi, channel.choi))
             elif kind == 'target':
