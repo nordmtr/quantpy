@@ -50,10 +50,14 @@ class Qobj(BaseQuantum):
         Check if the quantum object is rank-1 valid density matrix
     impurity()
         Return impurity measure 1-Tr(rho^2)
+    ket() : list
+        Ket vector representation of the quantum object
     kron()
         Kronecker product of 2 Qobj instances
     ptrace()
         Partial trace of the quantum object
+    schmidt()
+        Schmidt decomposition of the quantum object
     trace()
         Trace of the quantum object
 
@@ -152,6 +156,22 @@ class Qobj(BaseQuantum):
         rho = np.einsum(rho, bra_idx + ket_idx)  # sum over the preferred indices
         return Qobj(rho.reshape(2 ** len(keep), 2 ** len(keep)))
 
+    def schmidt(self):
+        """Return Schmidt decomposition of the quantum object, if it is pure and consists of 2 subsystems.
+
+        Returns
+        -------
+        U : complex numpy 2-D array
+            Unitary matrix having first subsystem vectors as columns
+        s : complex numpy 1-D array
+            Singular values of the decomposition, sorted in non-increasing order
+        Vh : complex 2-D array
+            Unitary matrix having second subsystem vectors as rows
+        """
+        matrix_dim = 2 ** int(self.n_qubits / 2)
+        matrix_repr = np.reshape(self.ket(), (matrix_dim, matrix_dim))
+        return la.svd(matrix_repr)
+
     def eig(self):
         """Find eigenvalues and eigenvectors of the quantum object
 
@@ -199,6 +219,12 @@ class Qobj(BaseQuantum):
     def is_pure(self):
         """Check if the quantum object is a valid rank-1 density matrix"""
         return np.allclose(self.impurity(), 0) and self.is_density_matrix()
+
+    def ket(self):
+        """Return ket vector representation of the quantum object if it is pure"""
+        if not self.is_pure():
+            raise ValueError('Quantum object is not pure')
+        return self.eig()[1][:, 0]
 
     def __repr__(self):
         return 'Quantum object\n' + repr(self.matrix)
