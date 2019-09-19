@@ -212,17 +212,17 @@ class StateTomograph:
         elif state is None:
             state = self.point_estimate(method=est_method, physical=physical, init=init)
 
-        dist = [0]
+        dist = np.zeros(n_boot + 1)
         boot_tmg = self.__class__(state, self.dst)
-        for _ in range(n_boot):
+        for i in range(n_boot):
             boot_tmg.experiment(self.n_measurements, POVM=self.POVM_matrix)
             rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init)
             if kind == 'estim':
-                dist.append(self.dst(rho, state))
+                dist[i + 1] = self.dst(rho, state)
             elif kind == 'target':
-                dist.append(self.dst(rho, self.state))
+                dist[i + 1] = self.dst(rho, self.state)
             elif kind == 'triangle':
-                dist.append(self.dst(rho, state) + self.dst(state, self.state))
+                dist[i + 1] = self.dst(rho, state) + self.dst(state, self.state)
             else:
                 raise ValueError('Invalid value for argument `kind`')
         dist.sort()

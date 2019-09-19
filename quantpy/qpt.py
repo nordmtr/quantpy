@@ -1,9 +1,16 @@
 import numpy as np
+import scipy.linalg as la
 
 from scipy.optimize import minimize
 
 from .geometry import hs_dst, if_dst, trace_dst
-from .routines import generate_single_entries, kron, _real_tril_vec_to_matrix, _matrix_to_real_tril_vec
+from .routines import (
+    generate_single_entries, kron,
+    _real_tril_vec_to_matrix,
+    _matrix_to_real_tril_vec,
+    _out_ptrace_oper,
+    _vec2mat, _mat2vec,
+)
 from .qobj import Qobj, fully_mixed
 from .channel import Channel, depolarizing
 from .tomography import StateTomograph
@@ -12,9 +19,9 @@ from .basis import Basis
 
 
 def _tp_constraint(tril_vec):
-    choi_matrix = Qobj(_real_tril_vec_to_matrix(tril_vec))
-    rho_in = choi_matrix.ptrace(list(range(choi_matrix.n_qubits // 2)))
-    return hs_dst(rho_in.matrix, np.eye(2 ** rho_in.n_qubits))
+    choi = Qobj(_real_tril_vec_to_matrix(tril_vec))
+    rho_in = _vec2mat(_out_ptrace_oper(choi.n_qubits // 2) @ _mat2vec(choi.matrix))
+    return hs_dst(rho_in, np.eye(2 ** (choi.n_qubits // 2)))
 
 
 class ProcessTomograph:
@@ -83,6 +90,9 @@ class ProcessTomograph:
             self.input_basis.decompose(Qobj(single_entry))
             for single_entry in generate_single_entries(2 ** channel.n_qubits)
         ])
+        self._ptrace_oper = _out_ptrace_oper(channel.n_qubits)
+        self._ptrace_dag_ptrace = self._ptrace_oper.T.conj() @ self._ptrace_oper
+        self._linear_inv_oper = 0  # TODO
 
     def experiment(self, n_measurements, POVM='proj', warm_start=False):
         """Simulate a real quantum process tomography by performing
@@ -118,7 +128,7 @@ class ProcessTomograph:
         for tmg in self.tomographs:
             tmg.experiment(n_measurements, POVM)
 
-    def point_estimate(self, method='lin', physical=True, init='lin', cptp=True):
+    def point_estimate(self, method='lifp', physical=True, init='lin', cptp=True, states_est_method='lin'):
         """Reconstruct a Choi matrix from the data obtained in the experiment
 
         Parameters
@@ -228,6 +238,25 @@ class ProcessTomograph:
                 raise ValueError('Invalid value for argument `kind`')
         dist.sort()
         return dist
+
+    def cptp_projection(self, channel):
+
+
+    def tp_projection(self, channel, vectorized=False):
+        dim = 2 ** channel.n_qubits
+        tp_choi_vec = _mat2vec(channel.choi.matrix) + (self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim))) / dim
+        if vectorized:
+            return tp_choi_vec
+        return Channel(_vec2mat(tp_choi_vec))
+
+    def cp_projection(self, channel, vectorized=False):
+        EPS = 1e-12
+        v, U = la.eigh(channel.choi.matrix)
+        V = np.diag(np.maximum(EPS, v))
+        cp_choi_matrix = U @ V @ U.T.conj()
+        if vectorized:
+            return _mat2vec(cp_choi_matrix)
+        return Channel(cp_choi_matrix)
 
 
 def _generate_input_states(type, input_impurity, n_qubits):
