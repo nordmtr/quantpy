@@ -162,7 +162,7 @@ class ProcessTomograph:
         reconstructed_channel : Channel
         """
         output_states = [
-            tmg.point_estimate(method, physical, init) for tmg in self.tomographs
+            tmg.point_estimate(states_est_method, physical, init) for tmg in self.tomographs
         ]
         output_basis = Basis(output_states)
         choi_matrix = Qobj(np.zeros((output_basis.dim, output_basis.dim)))
@@ -239,12 +239,25 @@ class ProcessTomograph:
         dist.sort()
         return dist
 
-    def cptp_projection(self, channel):
-
+    def cptp_projection(self, channel, n_iter=10000):
+        p = 0
+        q = 0
+        y = 0
+        x = _mat2vec(channel.choi.matrix)
+        for _ in range(n_iter):
+            y = self.tp_projection(Channel(_vec2mat(x + p)), vectorized=True)
+            p += x - y
+            x = self.cp_projection(Channel(_vec2mat(y + q)), vectorized=True)
+            q += y - x
+        return Channel(_vec2mat(x))
 
     def tp_projection(self, channel, vectorized=False):
         dim = 2 ** channel.n_qubits
-        tp_choi_vec = _mat2vec(channel.choi.matrix) + (self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim))) / dim
+        choi_vec = _mat2vec(channel.choi.matrix)
+        tp_choi_vec = choi_vec + (
+            self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim))
+            - self._ptrace_dag_ptrace @ _mat2vec(channel.choi.matrix)
+        ) / dim
         if vectorized:
             return tp_choi_vec
         return Channel(_vec2mat(tp_choi_vec))
