@@ -140,7 +140,7 @@ class ProcessTomograph:
 
             Possible values:
                 'lifp' -- linear inversion
-                'pgdb' -- gradient descent
+                'pgdb' -- projected gradient descent (CPTP only)
                 'states' -- reconstruction of the Choi matrix using a basis of reconstructed quantum states
 
         cptp : bool, default=True
@@ -176,15 +176,14 @@ class ProcessTomograph:
             self._lifp_oper.append(row)
         self._lifp_oper = _left_inv(np.array(self._lifp_oper))
         if method == 'lifp':
-            self.reconstructed_channel = self._point_estimate_lifp(cptp=cptp)
+            return self._point_estimate_lifp(cptp=cptp)
         elif method == 'pgdb':
-            self.reconstructed_channel = self._point_estimate_pgdb(cptp=cptp)
+            return self._point_estimate_pgdb()
         elif method == 'states':
-            self.reconstructed_channel = self._point_estimate_states(
+            return self._point_estimate_states(
                 cptp=cptp, method=states_est_method, physical=states_physical, init=states_init)
         else:
             raise ValueError('Incorrect value for argument `method`')
-        return self.reconstructed_channel
 
     def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin',
                   use_new_estimate=False, channel=None, kind='estim', cptp=True):
@@ -288,9 +287,13 @@ class ProcessTomograph:
         return Channel(cp_choi_matrix)
 
     def _point_estimate_lifp(self, cptp):
-        frequencies =
+        frequencies = np.hstack([stmg.results / stmg.n_measurements for stmg in self.tomographs])
+        self.reconstructed_channel = Channel(_vec2mat(self._lifp_oper @ frequencies))
+        if cptp:
+            self.reconstructed_channel = self.cptp_projection(self.reconstructed_channel)
+        return self.reconstructed_channel
 
-    def _point_estimate_pgdb(self, cptp):
+    def _point_estimate_pgdb(self):
         pass
 
     def _point_estimate_states(self, cptp, method, physical, init):
@@ -314,6 +317,7 @@ class ProcessTomograph:
             )
             choi_matrix = _real_tril_vec_to_matrix(opt_res.x)
         self.reconstructed_channel = Channel(choi_matrix)
+        return self.reconstructed_channel
 
 
 def _generate_input_states(type, input_impurity, n_qubits):
