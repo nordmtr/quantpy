@@ -4,6 +4,7 @@ import itertools as it
 
 from scipy.optimize import minimize
 
+from .state import StateTomograph
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..routines import (
     generate_single_entries, kron,
@@ -11,10 +12,10 @@ from ..routines import (
     _matrix_to_real_tril_vec,
     _out_ptrace_oper,
     _vec2mat, _mat2vec,
+    _left_inv,
 )
 from ..qobj import Qobj, fully_mixed
 from ..channel import Channel, depolarizing
-from .state import StateTomograph
 from ..measurements import generate_measurement_matrix
 from ..basis import Basis
 
@@ -125,17 +126,28 @@ class ProcessTomograph:
                 output_state_true = self.channel.transform(input_state)
                 tmg = StateTomograph(output_state_true)
                 self.tomographs.append(tmg)
-            # for it.product(self.input_basis.elements, generate_measurement_matrix(POVM))
         for tmg in self.tomographs:
-            tmg.experiment(n_measurements, POVM)
+            tmg.experiment(n_measurements, POVM, warm_start=warm_start)
 
-    def point_estimate(self, method='lifp', physical=True, init='lin', cptp=True, states_est_method='lin'):
+    def point_estimate(self, method='lifp', cptp=True,
+                       states_est_method='lin', states_physical=True, states_init='lin'):
         """Reconstruct a Choi matrix from the data obtained in the experiment
 
         Parameters
         ----------
-        method : str, default='lin'
-            Method of reconstructing of every output state
+        method : str, default='lifp'
+            Method of reconstructing the Choi matrix
+
+            Possible values:
+                'lifp' -- linear inversion
+                'pgdb' -- gradient descent
+                'states' -- reconstruction of the Choi matrix using a basis of reconstructed quantum states
+
+        cptp : bool, default=True
+            If True, return a projection onto CPTP space.
+
+        states_est_method : str, default='lin' (optional)
+            Method of reconstructing of every output state (only if method='states')
 
             Possible values:
                 'lin' -- linear inversion
@@ -144,46 +156,34 @@ class ProcessTomograph:
                 'mle-bloch' -- maximum likelihood estimation with Bloch parametrization,
                                constrained optimization (works only for 1-qubit systems)
 
-        physical : bool, default=True (optional)
-            For methods 'lin' and 'mle' reconstructed matrix of output state may not lie in the physical domain.
-            If True, set negative eigenvalues to zeros and divide the matrix by its trace.
+        states_physical : bool, default=True (optional)
+           For 'states' method defines if the point estimates of the quantum states should be physical
 
-        init : str, default='lin' (optional)
-            Methods using maximum likelihood estimation require the starting point for gradient descent.
+        states_init : str, default='lin' (optional)
+           For 'states' method with MLE sets an initial point for gradient descent
 
-            Possible values:
-                'lin' -- uses linear inversion point estimate as initial guess
-                'mixed' -- uses fully mixed state as initial guess
-
-        cptp : bool, default=True
-            If True, return a projection onto CPTP space.
+           Possible values:
+               'lin' -- uses linear inversion point estimate as initial guess
+               'mixed' -- uses fully mixed state as initial guess
 
         Returns
         -------
         reconstructed_channel : Channel
         """
-        output_states = [
-            tmg.point_estimate(states_est_method, physical, init) for tmg in self.tomographs
-        ]
-        output_basis = Basis(output_states)
-        choi_matrix = Qobj(np.zeros((output_basis.dim, output_basis.dim)))
-        for decomposed_single_entry in self._decomposed_single_entries:
-            single_entry = self.input_basis.compose(decomposed_single_entry)
-            transformed_single_entry = output_basis.compose(decomposed_single_entry)
-            choi_matrix += kron(single_entry, transformed_single_entry)
-        self.reconstructed_channel = Channel(choi_matrix)
-        if cptp and not self.reconstructed_channel.is_cptp(verbose=False):
-            x0 = fully_mixed(choi_matrix.n_qubits).matrix
-            x0 = _matrix_to_real_tril_vec(x0)
-            constraints = [
-                {'type': 'eq', 'fun': _tp_constraint},
-            ]
-            opt_res = minimize(
-                lambda x: hs_dst(choi_matrix, _real_tril_vec_to_matrix(x)),
-                x0, constraints=constraints, method='SLSQP'
-            )
-            choi_matrix = _real_tril_vec_to_matrix(opt_res.x)
-        self.reconstructed_channel = Channel(choi_matrix)
+        self._lifp_oper = []
+        for inp_state, POVM_bloch in it.product(self.input_basis.elements, self.tomographs[0].POVM_matrix):
+            row = _mat2vec(np.kron(inp_state.matrix, Qobj(POVM_bloch).matrix.T))
+            self._lifp_oper.append(row)
+        self._lifp_oper = _left_inv(np.array(self._lifp_oper))
+        if method == 'lifp':
+            self.reconstructed_channel = self._point_estimate_lifp(cptp=cptp)
+        elif method == 'pgdb':
+            self.reconstructed_channel = self._point_estimate_pgdb(cptp=cptp)
+        elif method == 'states':
+            self.reconstructed_channel = self._point_estimate_states(
+                cptp=cptp, method=states_est_method, physical=states_physical, init=states_init)
+        else:
+            raise ValueError('Incorrect value for argument `method`')
         return self.reconstructed_channel
 
     def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin',
@@ -286,6 +286,34 @@ class ProcessTomograph:
         if vectorized:
             return _mat2vec(cp_choi_matrix)
         return Channel(cp_choi_matrix)
+
+    def _point_estimate_lifp(self, cptp):
+        frequencies =
+
+    def _point_estimate_pgdb(self, cptp):
+        pass
+
+    def _point_estimate_states(self, cptp, method, physical, init):
+        output_states = [tmg.point_estimate(method, physical, init) for tmg in self.tomographs]
+        output_basis = Basis(output_states)
+        choi_matrix = Qobj(np.zeros((output_basis.dim, output_basis.dim)))
+        for decomposed_single_entry in self._decomposed_single_entries:
+            single_entry = self.input_basis.compose(decomposed_single_entry)
+            transformed_single_entry = output_basis.compose(decomposed_single_entry)
+            choi_matrix += kron(single_entry, transformed_single_entry)
+        self.reconstructed_channel = Channel(choi_matrix)
+        if cptp and not self.reconstructed_channel.is_cptp(verbose=False):
+            x0 = fully_mixed(choi_matrix.n_qubits).matrix
+            x0 = _matrix_to_real_tril_vec(x0)
+            constraints = [
+                {'type': 'eq', 'fun': _tp_constraint},
+            ]
+            opt_res = minimize(
+                lambda x: hs_dst(choi_matrix, _real_tril_vec_to_matrix(x)),
+                x0, constraints=constraints, method='SLSQP'
+            )
+            choi_matrix = _real_tril_vec_to_matrix(opt_res.x)
+        self.reconstructed_channel = Channel(choi_matrix)
 
 
 def _generate_input_states(type, input_impurity, n_qubits):
