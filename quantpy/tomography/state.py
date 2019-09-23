@@ -2,10 +2,10 @@ import numpy as np
 import scipy.linalg as la
 from scipy.optimize import minimize
 
-from .geometry import hs_dst, if_dst, trace_dst
-from .qobj import Qobj, fully_mixed
-from .measurements import generate_measurement_matrix
-from .routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix
+from ..geometry import hs_dst, if_dst, trace_dst
+from ..qobj import Qobj, fully_mixed
+from ..measurements import generate_measurement_matrix
+from ..routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix
 
 
 def _is_positive(bloch_vec):  # works only for 1-qubit systems !!

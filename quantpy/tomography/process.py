@@ -1,21 +1,22 @@
 import numpy as np
 import scipy.linalg as la
+import itertools as it
 
 from scipy.optimize import minimize
 
-from .geometry import hs_dst, if_dst, trace_dst
-from .routines import (
+from ..geometry import hs_dst, if_dst, trace_dst
+from ..routines import (
     generate_single_entries, kron,
     _real_tril_vec_to_matrix,
     _matrix_to_real_tril_vec,
     _out_ptrace_oper,
     _vec2mat, _mat2vec,
 )
-from .qobj import Qobj, fully_mixed
-from .channel import Channel, depolarizing
-from .tomography import StateTomograph
-from .measurements import generate_measurement_matrix
-from .basis import Basis
+from ..qobj import Qobj, fully_mixed
+from ..channel import Channel, depolarizing
+from .state import StateTomograph
+from ..measurements import generate_measurement_matrix
+from ..basis import Basis
 
 
 def _tp_constraint(tril_vec):
@@ -92,7 +93,6 @@ class ProcessTomograph:
         ])
         self._ptrace_oper = _out_ptrace_oper(channel.n_qubits)
         self._ptrace_dag_ptrace = self._ptrace_oper.T.conj() @ self._ptrace_oper
-        self._linear_inv_oper = 0  # TODO
 
     def experiment(self, n_measurements, POVM='proj', warm_start=False):
         """Simulate a real quantum process tomography by performing
@@ -125,6 +125,7 @@ class ProcessTomograph:
                 output_state_true = self.channel.transform(input_state)
                 tmg = StateTomograph(output_state_true)
                 self.tomographs.append(tmg)
+            # for it.product(self.input_basis.elements, generate_measurement_matrix(POVM))
         for tmg in self.tomographs:
             tmg.experiment(n_measurements, POVM)
 
