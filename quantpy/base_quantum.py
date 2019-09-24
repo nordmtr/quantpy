@@ -79,7 +79,7 @@ class BaseQuantum(ABC):
 
     def __idiv__(self, other):
         if type(other) in (int, float, complex):
-            self.matrix = self.matrix * other
+            self.matrix = self.matrix / other
             return self
         else:
             raise ValueError('Only division by a scalar is supported')

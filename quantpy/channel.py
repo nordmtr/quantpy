@@ -171,6 +171,58 @@ class Channel(BaseQuantum):
     def __repr__(self):
         return 'Quantum channel w Choi matrix\n' + repr(self.choi.matrix)
 
+    def __eq__(self, other):
+        return np.array_equal(self.choi, other.choi)
+
+    def __ne__(self, other):
+        return not np.array_equal(self.choi, other.choi)
+
+    def __neg__(self):
+        return self.__class__(-self.choi)
+
+    def __add__(self, other):
+        return self.__class__(self.choi + other.choi)
+
+    def __sub__(self, other):
+        return self.__class__(self.choi - other.choi)
+
+    def __mul__(self, other):
+        if isinstance(other, (int, float, complex)):
+            return self.__class__(self.choi * other)
+        else:
+            raise ValueError('Only multiplication by a scalar is allowed')
+
+    def __truediv__(self, other):
+        if isinstance(other, (int, float, complex)):
+            return self.__class__(self.choi / other)
+        else:
+            raise ValueError('Only division by a scalar is allowed')
+
+    def __iadd__(self, other):
+        self.choi = self.choi + other.choi
+        return self
+
+    def __isub__(self, other):
+        self.choi = self.choi - other.choi
+        return self
+
+    def __imul__(self, other):
+        if type(other) in (int, float, complex):
+            self.choi = self.choi * other
+            return self
+        else:
+            raise ValueError('Only multiplication by a scalar is supported')
+
+    def __idiv__(self, other):
+        if type(other) in (int, float, complex):
+            self.choi = self.choi / other
+            return self
+        else:
+            raise ValueError('Only division by a scalar is supported')
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
 
 def depolarizing(p=1, n_qubits=1):
     """Depolarizing channel with probability `p`
