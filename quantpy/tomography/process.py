@@ -241,10 +241,16 @@ class ProcessTomograph:
 
     def cptp_projection(self, channel, n_iter=1000, tol=1e-12, verbose=False):
         """Implementation of an iterative CPTP projection subroutine"""
+        x = _mat2vec(channel.choi.matrix)
+        x = self._cptp_projection_vec(x)
+        return Channel(_vec2mat(x))
+
+    def _cptp_projection_vec(self, choi_vec, n_iter=1000, tol=1e-12):
+        """Implementation of an iterative CPTP projection subroutine"""
+        x = choi_vec
         p = 0
         q = 0
         y = 0
-        x = _mat2vec(channel.choi.matrix)
         for i in range(n_iter):
             stop_criterion_value = 0
             y_diff = self.tp_projection(Channel(_vec2mat(x + p)), vectorized=True) - y
@@ -258,11 +264,8 @@ class ProcessTomograph:
             q += q_diff
             stop_criterion_value += la.norm(p_diff) ** 2 + la.norm(q_diff) ** 2
             if stop_criterion_value < tol:
-                break_iter = i
                 break
-        if verbose:
-            print('Procedure stopped at {} iteration'.format(break_iter))
-        return Channel(_vec2mat(x))
+        return x
 
     def tp_projection(self, channel, vectorized=False):
         """Projection of a channel onto TP space"""
