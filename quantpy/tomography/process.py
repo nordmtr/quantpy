@@ -130,6 +130,7 @@ class ProcessTomograph:
             tmg.experiment(n_measurements, POVM, warm_start=warm_start)
 
     def point_estimate(self, method='lifp', cptp=True,
+                       n_iter=1000, tol=1e-10,
                        states_est_method='lin', states_physical=True, states_init='lin'):
         """Reconstruct a Choi matrix from the data obtained in the experiment
 
@@ -174,11 +175,12 @@ class ProcessTomograph:
         for inp_state, POVM_bloch in it.product(self.input_basis.elements, self.tomographs[0].POVM_matrix):
             row = _mat2vec(np.kron(inp_state.matrix, Qobj(POVM_bloch).matrix.T))
             self._lifp_oper.append(row)
-        self._lifp_oper = _left_inv(np.array(self._lifp_oper))
+        self._lifp_oper = np.array(self._lifp_oper)
+        self._lifp_oper_inv = _left_inv(self._lifp_oper)
         if method == 'lifp':
             return self._point_estimate_lifp(cptp=cptp)
         elif method == 'pgdb':
-            return self._point_estimate_pgdb()
+            return self._point_estimate_pgdb(n_iter=n_iter, tol=tol)
         elif method == 'states':
             return self._point_estimate_states(
                 cptp=cptp, method=states_est_method, physical=states_physical, init=states_init)
@@ -227,7 +229,8 @@ class ProcessTomograph:
         boot_tmg = self.__class__(channel, self.input_states, self.dst)
         for _ in range(n_boot):
             boot_tmg.experiment(self.tomographs[0].n_measurements, POVM=self.tomographs[0].POVM_matrix)
-            estim_channel = boot_tmg.point_estimate(method=est_method, physical=physical, init=init, cptp=cptp)
+            estim_channel = boot_tmg.point_estimate(
+                states_est_method=est_method, states_physical=physical, states_init=init, cptp=cptp)
             if kind == 'estim':
                 dist.append(self.dst(estim_channel.choi, channel.choi))
             elif kind == 'target':
@@ -290,14 +293,44 @@ class ProcessTomograph:
         return Channel(cp_choi_matrix)
 
     def _point_estimate_lifp(self, cptp):
-        frequencies = np.hstack([stmg.results / stmg.n_measurements for stmg in self.tomographs])
-        self.reconstructed_channel = Channel(_vec2mat(self._lifp_oper @ frequencies))
+        self.frequencies = np.hstack([stmg.results / stmg.n_measurements for stmg in self.tomographs])
+        self.reconstructed_channel = Channel(_vec2mat(self._lifp_oper_inv @ self.frequencies))
         if cptp:
             self.reconstructed_channel = self.cptp_projection(self.reconstructed_channel)
         return self.reconstructed_channel
 
-    def _point_estimate_pgdb(self):
-        pass
+    def _point_estimate_pgdb(self, n_iter, tol):
+        self.frequencies = np.hstack([stmg.results / stmg.n_measurements for stmg in self.tomographs])
+        choi_vec = _mat2vec(fully_mixed(self.channel.n_qubits * 2).matrix)
+        mu = 1.5 / (4 ** self.channel.n_qubits)
+        gamma = 0.3
+        for i in range(n_iter):
+            probas = self._lifp_oper @ choi_vec
+            grad = -self._lifp_oper.T.conj() @ (self.frequencies / probas)
+            print('grad:', grad / mu)
+            print('diff_1:', self._cptp_projection_vec(choi_vec - grad / mu) - (choi_vec - grad / mu))
+            print('diff_tot:', choi_vec - self._cptp_projection_vec(choi_vec - grad / mu))
+            D = self._cptp_projection_vec(choi_vec - grad / mu) - choi_vec
+            alpha = 1
+            while self._nll(choi_vec + alpha * D) - self._nll(choi_vec) > np.abs(gamma * alpha * np.dot(D, grad)):
+                # print('lhs:', self._nll(choi_vec + alpha * D) - self._nll(choi_vec))
+                # print('rhs:', np.abs(gamma * alpha * np.dot(D, grad)))
+                alpha /= 2
+            print('alpha:', alpha)
+            # if -self._nll(choi_vec + alpha * D) + self._nll(choi_vec) > tol:
+            #     choi_vec += alpha * D
+            #     break
+            print('NLL:', self._nll(choi_vec))
+            choi_vec += alpha * D
+        self.reconstructed_channel = Channel(_vec2mat(choi_vec))
+        return self.reconstructed_channel
+
+    def _nll(self, choi_vec):
+        EPS = 1e-12
+        probas = self._lifp_oper @ choi_vec
+        # print('freq:', self.frequencies)
+        # print('probas:', probas)
+        return -np.real(np.dot(self.frequencies, np.log(probas + EPS)))
 
     def _point_estimate_states(self, cptp, method, physical, init):
         output_states = [tmg.point_estimate(method, physical, init) for tmg in self.tomographs]

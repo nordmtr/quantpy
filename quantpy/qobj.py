@@ -233,4 +233,4 @@ class Qobj(BaseQuantum):
 def fully_mixed(n_qubits=1):
     """Return fully mixed state"""
     dim = 2 ** n_qubits
-    return Qobj(np.eye(dim) / dim)
+    return Qobj(np.eye(dim, dtype=np.complex128) / dim)
