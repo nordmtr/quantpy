@@ -95,7 +95,7 @@ class StateTomograph:
         else:
             self.dst = dst
 
-    def experiment(self, n_measurements, POVM='proj', warm_start=False):
+    def experiment(self, n_measurements, POVM='proj-set', warm_start=False):
         """Simulate a real quantum state tomography.
 
         Parameters
@@ -107,6 +107,7 @@ class StateTomograph:
 
             Possible strings:
                 'proj' -- orthogonal projective measurement, 6^n_qubits rows
+                'proj-set' -- true orthogonal projective measurement, set of POVMs
                 'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^n_qubits rows
 
             Possible numpy arrays:
@@ -119,9 +120,13 @@ class StateTomograph:
         warm_start : bool, default=False
             If True, do not overwrite the previous experiment results, add all results to those of the previous run
         """
+        self.POVM = POVM
         POVM_matrix = generate_measurement_matrix(POVM, self.state.n_qubits)
-        probas = POVM_matrix @ self.state.bloch * (2 ** self.state.n_qubits)
-        results = np.random.multinomial(n_measurements, probas)
+        probas = np.einsum('ijk,k->ij', POVM_matrix, self.state.bloch) * (2 ** self.state.n_qubits)
+        results = [np.random.multinomial(n_measurements, probas_set) for probas_set in probas]
+        n_measurements *= len(results)
+        results = np.hstack(results)
+        POVM_matrix = POVM_matrix.reshape((-1, POVM_matrix.shape[-1]))
         if warm_start:
             self.POVM_matrix = np.vstack((
                 self.POVM_matrix * self.n_measurements,
@@ -144,7 +149,7 @@ class StateTomograph:
 
             Possible values:
                 'lin' -- linear inversion
-                'mle' -- maximum likelihood estimation with Cholesky parametrization, unconstrained optimization
+                'mle' -- maximum likelihood estimation with Cholesky parameterization, unconstrained optimization
                 'mle-constr' -- same as 'mle', but optimization is constrained
                 'mle-bloch' -- maximum likelihood estimation with Bloch parametrization,
                                constrained optimization (works only for 1-qubit systems)
@@ -215,7 +220,7 @@ class StateTomograph:
         dist = np.zeros(n_boot + 1)
         boot_tmg = self.__class__(state, self.dst)
         for i in range(n_boot):
-            boot_tmg.experiment(self.n_measurements, POVM=self.POVM_matrix)
+            boot_tmg.experiment(self.n_measurements, POVM=self.POVM)
             rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init)
             if kind == 'estim':
                 dist[i + 1] = self.dst(rho, state)

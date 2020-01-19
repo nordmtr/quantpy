@@ -8,35 +8,50 @@ def generate_measurement_matrix(POVM='proj', n_qubits=1):
     ----------
     n_qubits : int, default=1
         Number of qubits
-    POVM : str or numpy 2-D array, default='proj'
+    POVM : str or numpy 2-D or 3-D array, default='proj'
         A single string or a numpy array to construct a POVM matrix.
 
         Possible strings:
-            'proj' -- orthogonal projective measurement, 6^n_qubits rows
+            'proj' -- random orthogonal projective measurement, 6^n_qubits rows
+            'proj-set' -- true orthogonal projective measurement, set of POVMs
             'proj4' -- same as `proj`, but without |-> and |-i> states
             'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^n_qubits rows
 
         Possible numpy arrays:
             2-D array with shape (*, 4) -- interpreted as POVM matrix for 1 qubit,
             construct a POVM matrix for the whole system from tensor products of rows of this matrix
+            3-D array with shape (*, *, 4) -- same, but set of POVMs
             2-D array with shape (*, 4^n_qubits) -- returns this matrix without any changes
+            3-D array with shape (*, *, 4^n_qubits) -- same, but set of POVMs
 
     Returns
     -------
-    POVM_matrix : numpy 2-D array
-        Matrix of POVM, where each row represents an operator in the Bloch representation
+    POVM_matrix : numpy 3-D array
+        Set of matrices of POVMs, where each row represents an operator in the Bloch representation
         and rows sum into unity.
     """
     is_full_POVM = False
     if isinstance(POVM, str):
         if POVM == 'proj':
             x_pos = np.array([1, 1, 0, 0])
-            y_pos = np.array([1, 0, 1, 0])
-            z_pos = np.array([1, 0, 0, 1])
             x_neg = np.array([1, -1, 0, 0])
+            y_pos = np.array([1, 0, 1, 0])
             y_neg = np.array([1, 0, -1, 0])
+            z_pos = np.array([1, 0, 0, 1])
             z_neg = np.array([1, 0, 0, -1])
             POVM_1 = np.array([x_pos, x_neg, y_pos, y_neg, z_pos, z_neg]) / 6
+        elif POVM == 'proj-set':
+            x_pos = np.array([1, 1, 0, 0])
+            x_neg = np.array([1, -1, 0, 0])
+            y_pos = np.array([1, 0, 1, 0])
+            y_neg = np.array([1, 0, -1, 0])
+            z_pos = np.array([1, 0, 0, 1])
+            z_neg = np.array([1, 0, 0, -1])
+            POVM_1 = np.array([
+                np.array([x_pos, x_neg]),
+                np.array([y_pos, y_neg]),
+                np.array([z_pos, z_neg]),
+            ]) / 2
         elif POVM == 'proj4':
             x_pos = np.array([1, 1, 0, 0])
             y_pos = np.array([1, 0, 1, 0])
@@ -53,9 +68,11 @@ def generate_measurement_matrix(POVM='proj', n_qubits=1):
         else:
             raise ValueError('Incorrect string shortcut for argument `POVM`')
     elif isinstance(POVM, np.ndarray):
-        if POVM.shape[1] == 4:
+        if POVM.shape[-1] == 4:
             POVM_1 = POVM
-        elif POVM.shape[1] == 4 ** n_qubits:
+        elif POVM.shape[-1] == 4 ** n_qubits:
+            if len(POVM.shape) == 2:
+                POVM = POVM[None, :, :]
             POVM_matrix = POVM
             is_full_POVM = True
         else:
@@ -63,6 +80,8 @@ def generate_measurement_matrix(POVM='proj', n_qubits=1):
     else:
         raise ValueError('Incorrect value for argument `POVM`')
     if not is_full_POVM:
+        if len(POVM_1.shape) == 2:
+            POVM_1 = POVM_1[None, :, :]
         POVM_matrix = POVM_1
         for _ in range(n_qubits - 1):
             POVM_matrix = np.kron(POVM_matrix, POVM_1)
