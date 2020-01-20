@@ -229,6 +229,13 @@ class Qobj(BaseQuantum):
     def __repr__(self):
         return 'Quantum object\n' + repr(self.matrix)
 
+    def _repr_latex_(self):
+        try:
+            import qutip
+        except ImportError:
+            return 'Quantum object\n' + repr(self.matrix)
+        return qutip.Qobj(self.matrix)._repr_latex_()
+
 
 def fully_mixed(n_qubits=1):
     """Return fully mixed state"""
