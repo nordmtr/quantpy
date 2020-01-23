@@ -28,16 +28,6 @@ def _make_feasible(qobj):
     return Qobj(matrix / np.trace(matrix))
 
 
-def _make_feasible_bloch(qobj):  # works only for 1-qubit systems !!
-    """Normalize the Bloch vector if it is outside the Bloch sphere"""
-    bloch_vec = qobj.bloch.copy()
-    bloch_norm = la.norm(bloch_vec[1:], ord=2)
-    if bloch_norm > 0.5:
-        bloch_vec[1:] *= 0.5 / bloch_norm
-    bloch_vec[0] = 0.5
-    return Qobj(bloch_vec)
-
-
 class StateTomograph:
     """Basic class for quantum state tomography
 
@@ -295,26 +285,5 @@ class StateTomograph:
         EPS = 1e-10
         rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
         probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / np.sum(self.n_measurements)
-        return -log_likelihood
-
-    def _point_estimate_mle_bloch(self, physical):  # works only for 1-qubit systems
-        """Point estimate based on MLE with Bloch parametrization"""
-        constraints = [
-            {'type': 'ineq', 'fun': _is_positive},
-        ]
-        x0 = np.zeros(4 ** self.state.n_qubits - 1)  # fully mixed state
-        opt_res = minimize(self._neg_log_likelihood_bloch, x0, constraints=constraints, method='SLSQP')
-        bloch_vec = np.append(1 / 2 ** self.state.n_qubits, opt_res.x)
-        rho = Qobj(bloch_vec)
-        if physical:
-            rho = self._make_feasible(rho)
-        return rho
-
-    def _neg_log_likelihood_bloch(self, bloch_vec):
-        """Negative log-likelihood for MLE with Bloch parametrization"""
-        EPS = 1e-10
-        bloch_vec = np.append(1 / 2 ** self.state.n_qubits, bloch_vec)
-        probas = self.POVM_matrix @ bloch_vec * (2 ** self.state.n_qubits)
         log_likelihood = np.sum(self.results * np.log(probas + EPS)) / np.sum(self.n_measurements)
         return -log_likelihood
