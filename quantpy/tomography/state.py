@@ -28,6 +28,16 @@ def _make_feasible(qobj):
     return Qobj(matrix / np.trace(matrix))
 
 
+def _make_feasible_bloch(qobj):  # works only for 1-qubit systems !!
+    """Normalize the Bloch vector if it is outside the Bloch sphere"""
+    bloch_vec = qobj.bloch.copy()
+    bloch_norm = la.norm(bloch_vec[1:], ord=2)
+    if bloch_norm > 0.5:
+        bloch_vec[1:] *= 0.5 / bloch_norm
+    bloch_vec[0] = 0.5
+    return Qobj(bloch_vec)
+
+
 class StateTomograph:
     """Basic class for quantum state tomography
 
@@ -90,52 +100,44 @@ class StateTomograph:
 
         Parameters
         ----------
-        n_measurements : int or array-like
+        n_measurements : int
             Number of measurements to perform in the tomography
         POVM : str or numpy 2-D array, default='proj'
             A single string or a numpy array to construct a POVM matrix.
 
             Possible strings:
-                'proj' -- random orthogonal projective measurement, 6^n_qubits rows
+                'proj' -- orthogonal projective measurement, 6^n_qubits rows
                 'proj-set' -- true orthogonal projective measurement, set of POVMs
                 'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^n_qubits rows
 
             Possible numpy arrays:
                 2-D array with shape (*, 4) -- interpreted as POVM matrix for 1 qubit,
                 construct a POVM matrix for the whole system from tensor products of rows of this matrix
-                3-D array with shape (*, *, 4) -- same, but set of POVMs
                 2-D array with shape (*, 4^n_qubits) -- returns this matrix without any changes
-                3-D array with shape (*, *, 4^n_qubits) -- same, but set of POVMs
 
             See :ref:`generate_measurement_matrix` for more detailed documentation
 
         warm_start : bool, default=False
             If True, do not overwrite the previous experiment results, add all results to those of the previous run
         """
+        self.POVM = POVM
         POVM_matrix = generate_measurement_matrix(POVM, self.state.n_qubits)
-        number_of_POVMs = POVM_matrix.shape[0]
-
-        if isinstance(n_measurements, int):
-            n_measurements = np.ones(number_of_POVMs) * n_measurements
-        elif len(n_measurements) != number_of_POVMs:
-            raise ValueError('Wrong length for argument `n_measurements`')
-
         probas = np.einsum('ijk,k->ij', POVM_matrix, self.state.bloch) * (2 ** self.state.n_qubits)
-        results = [np.random.multinomial(n_measurements_for_POVM, probas_for_POVM)
-                   for probas_for_POVM, n_measurements_for_POVM in zip(probas, n_measurements)]
+        results = [np.random.multinomial(n_measurements, probas_set) for probas_set in probas]
+        n_measurements *= len(results)
         results = np.hstack(results)
-
+        POVM_matrix = POVM_matrix.reshape((-1, POVM_matrix.shape[-1]))
         if warm_start:
             self.POVM_matrix = np.vstack((
-                self.POVM_matrix * np.sum(self.n_measurements),
-                POVM_matrix * np.sum(n_measurements),
-            )) / (np.sum(self.n_measurements) + np.sum(n_measurements))
+                self.POVM_matrix * self.n_measurements,
+                POVM_matrix * n_measurements,
+            )) / (self.n_measurements + n_measurements)
             self.results = np.hstack((self.results, results))
-            self.n_measurements = np.hstack((self.n_measurements, n_measurements))
+            self.n_measurements += n_measurements
         else:
             self.POVM_matrix = POVM_matrix
             self.results = results
-            self.n_measurements = np.array(n_measurements)
+            self.n_measurements = n_measurements
 
     def point_estimate(self, method='lin', physical=True, init='lin'):
         """Reconstruct a density matrix from the data obtained in the experiment
@@ -218,7 +220,7 @@ class StateTomograph:
         dist = np.zeros(n_boot + 1)
         boot_tmg = self.__class__(state, self.dst)
         for i in range(n_boot):
-            boot_tmg.experiment(self.n_measurements, self.POVM_matrix)
+            boot_tmg.experiment(self.n_measurements, POVM=self.POVM)
             rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init)
             if kind == 'estim':
                 dist[i + 1] = self.dst(rho, state)
@@ -234,9 +236,7 @@ class StateTomograph:
     def _point_estimate_lin(self, physical):
         """Point estimate based on linear inversion algorithm"""
         frequencies = self.results / self.results.sum()
-        POVM_matrix = np.reshape(self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
-                                 (-1, self.POVM_matrix.shape[-1]))
-        bloch_vec = _left_inv(POVM_matrix) @ frequencies / (2 ** self.state.n_qubits)
+        bloch_vec = _left_inv(self.POVM_matrix) @ frequencies / (2 ** self.state.n_qubits)
         rho = Qobj(bloch_vec)
         if physical:
             rho = _make_feasible(rho)
@@ -261,7 +261,7 @@ class StateTomograph:
         matrix = _real_tril_vec_to_matrix(tril_vec)
         rho = Qobj(matrix / np.trace(matrix))
         probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / np.sum(self.n_measurements)
+        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / self.n_measurements
         return -log_likelihood
 
     def _point_estimate_mle_chol_constr(self, init):
@@ -285,5 +285,26 @@ class StateTomograph:
         EPS = 1e-10
         rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
         probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / np.sum(self.n_measurements)
+        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / self.n_measurements
+        return -log_likelihood
+
+    def _point_estimate_mle_bloch(self, physical):  # works only for 1-qubit systems
+        """Point estimate based on MLE with Bloch parametrization"""
+        constraints = [
+            {'type': 'ineq', 'fun': _is_positive},
+        ]
+        x0 = np.zeros(4 ** self.state.n_qubits - 1)  # fully mixed state
+        opt_res = minimize(self._neg_log_likelihood_bloch, x0, constraints=constraints, method='SLSQP')
+        bloch_vec = np.append(1 / 2 ** self.state.n_qubits, opt_res.x)
+        rho = Qobj(bloch_vec)
+        if physical:
+            rho = self._make_feasible(rho)
+        return rho
+
+    def _neg_log_likelihood_bloch(self, bloch_vec):
+        """Negative log-likelihood for MLE with Bloch parametrization"""
+        EPS = 1e-10
+        bloch_vec = np.append(1 / 2 ** self.state.n_qubits, bloch_vec)
+        probas = self.POVM_matrix @ bloch_vec * (2 ** self.state.n_qubits)
+        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / self.n_measurements
         return -log_likelihood

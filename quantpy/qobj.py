@@ -230,109 +230,11 @@ class Qobj(BaseQuantum):
         return 'Quantum object\n' + repr(self.matrix)
 
     def _repr_latex_(self):
-        """Generate a LaTeX representation of the Qobj instance. Can be used for
-        formatted output in IPython notebook.
-        """
-        s = r'Quantum object: '
-        M, N = self.matrix.shape
-
-        s += r'\begin{equation*}\left(\begin{array}{*{11}c}'
-
-        def _format_float(value):
-            if value == 0.0:
-                return "0.0"
-            elif abs(value) > 1000.0 or abs(value) < 0.001:
-                return ("%.3e" % value).replace("e", r"\times10^{") + "}"
-            elif abs(value - int(value)) < 0.001:
-                return "%.1f" % value
-            else:
-                return "%.3f" % value
-
-        def _format_element(m, n, d):
-            s = " & " if n > 0 else ""
-            if type(d) == str:
-                return s + d
-            else:
-                atol = 1e-4
-                if abs(np.imag(d)) < atol:
-                    return s + _format_float(np.real(d))
-                elif abs(np.real(d)) < atol:
-                    return s + _format_float(np.imag(d)) + "j"
-                else:
-                    s_re = _format_float(np.real(d))
-                    s_im = _format_float(np.imag(d))
-                    if np.imag(d) > 0.0:
-                        return (s + "(" + s_re + "+" + s_im + "j)")
-                    else:
-                        return (s + "(" + s_re + s_im + "j)")
-
-        if M > 10 and N > 10:
-            # truncated matrix output
-            for m in range(5):
-                for n in range(5):
-                    s += _format_element(m, n, self.matrix[m, n])
-                s += r' & \cdots'
-                for n in range(N - 5, N):
-                    s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
-
-            for n in range(5):
-                s += _format_element(m, n, r'\vdots')
-            s += r' & \ddots'
-            for n in range(N - 5, N):
-                s += _format_element(m, n, r'\vdots')
-            s += r'\\'
-
-            for m in range(M - 5, M):
-                for n in range(5):
-                    s += _format_element(m, n, self.matrix[m, n])
-                s += r' & \cdots'
-                for n in range(N - 5, N):
-                    s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
-
-        elif M > 10 and N <= 10:
-            # truncated vertically elongated matrix output
-            for m in range(5):
-                for n in range(N):
-                    s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
-
-            for n in range(N):
-                s += _format_element(m, n, r'\vdots')
-            s += r'\\'
-
-            for m in range(M - 5, M):
-                for n in range(N):
-                    s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
-
-        elif M <= 10 and N > 10:
-            # truncated horizontally elongated matrix output
-            for m in range(M):
-                for n in range(5):
-                    s += _format_element(m, n, self.matrix[m, n])
-                s += r' & \cdots'
-                for n in range(N - 5, N):
-                    s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
-
-        else:
-            # full output
-            for m in range(M):
-                for n in range(N):
-                    s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
-
-        s += r'\end{array}\right)\end{equation*}'
-        return s
-        # import qutip
-        # return repr(self)
-        # try:
-        #     import qutip
-        # except ModuleNotFoundError:
-        #     return repr(self)
-        # return qutip.Qobj(self.matrix)._repr_latex_()
+        try:
+            import qutip
+        except ImportError:
+            return 'Quantum object\n' + repr(self.matrix)
+        return qutip.Qobj(self.matrix)._repr_latex_()
 
 
 def fully_mixed(n_qubits=1):
