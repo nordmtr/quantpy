@@ -260,7 +260,9 @@ class StateTomograph:
         EPS = 1e-10
         matrix = _real_tril_vec_to_matrix(tril_vec)
         rho = Qobj(matrix / np.trace(matrix))
-        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
+        POVM_matrix = np.reshape(self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
+                                 (-1, self.POVM_matrix.shape[-1]))
+        probas = POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
         log_likelihood = np.sum(self.results * np.log(probas + EPS)) / np.sum(self.n_measurements)
         return -log_likelihood
 
@@ -284,6 +286,8 @@ class StateTomograph:
         """Negative log-likelihood for constrained MLE with Cholesky parametrization"""
         EPS = 1e-10
         rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
-        probas = self.POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
+        POVM_matrix = np.reshape(self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
+                                 (-1, self.POVM_matrix.shape[-1]))
+        probas = POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
         log_likelihood = np.sum(self.results * np.log(probas + EPS)) / np.sum(self.n_measurements)
         return -log_likelihood
