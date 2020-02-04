@@ -169,7 +169,10 @@ class Channel(BaseQuantum):
         return self.__class__(self.choi.conj())
 
     def __repr__(self):
-        return 'Quantum channel w Choi matrix\n' + repr(self.choi.matrix)
+        return 'Quantum channel with Choi matrix\n' + repr(self.choi.matrix)
+
+    def _repr_latex_(self):
+        return r'Choi matrix: ' + Qobj(self.choi.matrix)._repr_latex_()
 
     def __eq__(self, other):
         return np.array_equal(self.choi, other.choi)
