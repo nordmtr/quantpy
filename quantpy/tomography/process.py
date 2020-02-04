@@ -95,7 +95,7 @@ class ProcessTomograph:
         self._ptrace_oper = _out_ptrace_oper(channel.n_qubits)
         self._ptrace_dag_ptrace = self._ptrace_oper.T.conj() @ self._ptrace_oper
 
-    def experiment(self, n_measurements, POVM='proj', warm_start=False):
+    def experiment(self, n_measurements, POVM='proj-set', warm_start=False):
         """Simulate a real quantum process tomography by performing
         quantum state tomography on each of transformed input states.
 
@@ -172,7 +172,12 @@ class ProcessTomograph:
         reconstructed_channel : Channel
         """
         self._lifp_oper = []
-        for inp_state, POVM_bloch in it.product(self.input_basis.elements, self.tomographs[0].POVM_matrix):
+        POVM_matrix = np.reshape(
+            self.tomographs[0].POVM_matrix * self.tomographs[0].n_measurements[:, None, None]
+            / np.sum(self.tomographs[0].n_measurements),
+            (-1, self.tomographs[0].POVM_matrix.shape[-1])
+        )
+        for inp_state, POVM_bloch in it.product(self.input_basis.elements, POVM_matrix):
             row = _mat2vec(np.kron(inp_state.matrix, Qobj(POVM_bloch).matrix.T))
             self._lifp_oper.append(row)
         self._lifp_oper = np.array(self._lifp_oper)
@@ -187,8 +192,8 @@ class ProcessTomograph:
         else:
             raise ValueError('Incorrect value for argument `method`')
 
-    def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin',
-                  use_new_estimate=False, channel=None, kind='estim', cptp=True):
+    def bootstrap(self, n_boot, method='lifp', cptp=True, n_iter=1000, tol=1e-10, use_new_estimate=False,
+                  channel=None, states_est_method='lin', states_physical=True, states_init='lin', kind='estim'):
         """Perform multiple tomography simulation on the preferred channel with the same measurements number
         and POVM matrix, as in the preceding experiment. Count the distances to the bootstrapped Choi matrices.
 
@@ -196,12 +201,15 @@ class ProcessTomograph:
         ----------
         n_boot : int
             Number of experiments to perform
-        est_method : str, default='lin'
+        method : str, default='lifp'
+            Method of reconstructing the Choi matrix
+            See :ref:`point_estimate` for detailed documentation
+        states_est_method : str, default='lin'
             Method of reconstructing the density matrix for each output state
             See :ref:`point_estimate` for detailed documentation
-        physical : bool, default=True (optional)
+        states_physical : bool, default=True (optional)
             See :ref:`point_estimate` for detailed documentation
-        init : str, default='lin' (optional)
+        states_init : str, default='lin' (optional)
             See :ref:`point_estimate` for detailed documentation
         use_new_estimate : bool, default=False
             If False, uses the latest reconstructed channel as a channel to perform new tomographies on.
@@ -210,7 +218,7 @@ class ProcessTomograph:
             If True and `channel` is not None, use `channel` as a channel to perform new tomographies on.
         channel : Qobj or None, default=None
             If not None and `use_new_estimate` is True, use it as a channel to perform new tomographies on
-        kind : str, default='est'
+        kind : str, default='estim'
             Type of confidence interval to build.
             Possible values:
                 'estim' -- CI for the point estimate
@@ -223,14 +231,15 @@ class ProcessTomograph:
         if not use_new_estimate:
             channel = self.reconstructed_channel
         elif channel is None:
-            channel = self.point_estimate(method=est_method, physical=physical, init=init, cptp=cptp)
+            channel = self.point_estimate(method=method, states_physical=states_physical,
+                                          states_init=states_init, cptp=cptp)
 
         dist = [0]
         boot_tmg = self.__class__(channel, self.input_states, self.dst)
         for _ in range(n_boot):
             boot_tmg.experiment(self.tomographs[0].n_measurements, POVM=self.tomographs[0].POVM_matrix)
-            estim_channel = boot_tmg.point_estimate(
-                states_est_method=est_method, states_physical=physical, states_init=init, cptp=cptp)
+            estim_channel = boot_tmg.point_estimate(method=method, states_physical=states_physical,
+                                                    states_init=states_init, cptp=cptp)
             if kind == 'estim':
                 dist.append(self.dst(estim_channel.choi, channel.choi))
             elif kind == 'target':
@@ -293,14 +302,14 @@ class ProcessTomograph:
         return Channel(cp_choi_matrix)
 
     def _point_estimate_lifp(self, cptp):
-        self.frequencies = np.hstack([stmg.results / stmg.n_measurements for stmg in self.tomographs])
+        self.frequencies = np.hstack([stmg.results / stmg.results.sum() for stmg in self.tomographs])
         self.reconstructed_channel = Channel(_vec2mat(self._lifp_oper_inv @ self.frequencies))
         if cptp:
             self.reconstructed_channel = self.cptp_projection(self.reconstructed_channel)
         return self.reconstructed_channel
 
     def _point_estimate_pgdb(self, n_iter, tol):
-        self.frequencies = np.hstack([stmg.results / stmg.n_measurements for stmg in self.tomographs])
+        self.frequencies = np.hstack([stmg.results / stmg.results.sum() for stmg in self.tomographs])
         choi_vec = _mat2vec(fully_mixed(self.channel.n_qubits * 2).matrix)
         mu = 1.5 / (4 ** self.channel.n_qubits)
         gamma = 0.3
@@ -359,7 +368,7 @@ class ProcessTomograph:
 def _generate_input_states(type, input_impurity, n_qubits):
     """Generate input states to use in quantum process tomography"""
     input_states_list = []
-    for input_state_bloch in generate_measurement_matrix(type, n_qubits):
+    for input_state_bloch in np.squeeze(generate_measurement_matrix(type, n_qubits)):
         input_state = Qobj(input_state_bloch)
         input_state /= input_state.trace()
         input_state = depolarizing(input_impurity, n_qubits).transform(input_state)
