@@ -351,17 +351,7 @@ class ProcessTomograph:
             choi_matrix += kron(single_entry, transformed_single_entry)
         self.reconstructed_channel = Channel(choi_matrix)
         if cptp and not self.reconstructed_channel.is_cptp(verbose=False):
-            x0 = fully_mixed(choi_matrix.n_qubits).matrix
-            x0 = _matrix_to_real_tril_vec(x0)
-            constraints = [
-                {'type': 'eq', 'fun': _tp_constraint},
-            ]
-            opt_res = minimize(
-                lambda x: hs_dst(choi_matrix, _real_tril_vec_to_matrix(x)),
-                x0, constraints=constraints, method='SLSQP'
-            )
-            choi_matrix = _real_tril_vec_to_matrix(opt_res.x)
-        self.reconstructed_channel = Channel(choi_matrix)
+            self.reconstructed_channel = self.cptp_projection(self.reconstructed_channel)
         return self.reconstructed_channel
 
 
