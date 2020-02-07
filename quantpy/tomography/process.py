@@ -235,7 +235,7 @@ class ProcessTomograph:
                                           states_init=states_init, cptp=cptp)
 
         dist = [0]
-        boot_tmg = self.__class__(channel, self.input_states, self.dst)
+        boot_tmg = self.__class__(channel, self.input_states, self.dst, self.input_impurity)
         for _ in range(n_boot):
             boot_tmg.experiment(self.tomographs[0].n_measurements, POVM=self.tomographs[0].POVM_matrix)
             estim_channel = boot_tmg.point_estimate(method=method, states_physical=states_physical,
