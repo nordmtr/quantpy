@@ -70,7 +70,7 @@ class ProcessTomograph:
     point_estimate()
         Reconstruct a channel from the data obtained in the experiment
     """
-    def __init__(self, channel, input_states='proj4', dst='hs', input_impurity=0.05):
+    def __init__(self, channel, input_states='proj4', dst='hs', input_impurity=0.05, _dep_trick=False):
         self.channel = channel
         if isinstance(dst, str):
             if dst == 'hs':
@@ -85,7 +85,7 @@ class ProcessTomograph:
             self.dst = dst
         self.input_states = input_states
         self.input_impurity = input_impurity
-        self.input_basis = Basis(_generate_input_states(input_states, input_impurity, channel.n_qubits))
+        self.input_basis = Basis(_generate_input_states(input_states, input_impurity, channel.n_qubits, _dep_trick))
         if self.input_basis.dim != 4 ** channel.n_qubits:
             raise ValueError('Input states do not constitute a basis')
         self._decomposed_single_entries = np.array([
@@ -235,7 +235,7 @@ class ProcessTomograph:
                                           states_init=states_init, cptp=cptp)
 
         dist = [0]
-        boot_tmg = self.__class__(channel, self.input_states, self.dst, self.input_impurity)
+        boot_tmg = self.__class__(channel, self.input_states, self.dst, self.input_impurity, _dep_trick=True)
         for _ in range(n_boot):
             boot_tmg.experiment(self.tomographs[0].n_measurements, POVM=self.tomographs[0].POVM_matrix)
             estim_channel = boot_tmg.point_estimate(method=method, states_physical=states_physical,
@@ -355,12 +355,13 @@ class ProcessTomograph:
         return self.reconstructed_channel
 
 
-def _generate_input_states(type, input_impurity, n_qubits):
+def _generate_input_states(type, input_impurity, n_qubits, _dep_trick):
     """Generate input states to use in quantum process tomography"""
     input_states_list = []
     for input_state_bloch in np.squeeze(generate_measurement_matrix(type, n_qubits)):
         input_state = Qobj(input_state_bloch)
         input_state /= input_state.trace()
-        input_state = depolarizing(input_impurity, n_qubits).transform(input_state)
+        if _dep_trick:
+            input_state = depolarizing(input_impurity, n_qubits).transform(input_state)
         input_states_list.append(input_state)
     return input_states_list
