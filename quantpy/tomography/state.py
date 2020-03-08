@@ -137,7 +137,7 @@ class StateTomograph:
             self.results = results
             self.n_measurements = np.array(n_measurements)
 
-    def point_estimate(self, method='lin', physical=True, init='lin'):
+    def point_estimate(self, method='lin', physical=True, init='lin', max_iter=1000, tol=1e-5):
         """Reconstruct a density matrix from the data obtained in the experiment
 
         Parameters
@@ -163,6 +163,12 @@ class StateTomograph:
                 'lin' -- uses linear inversion point estimate as initial guess
                 'mixed' -- uses fully mixed state as initial guess
 
+        max_iter : int, default=1000 (optional)
+            Number of iterations in MLE method
+
+        tol : float, default=1e-5 (optional)
+            Error tolerance in MLE method
+
         Returns
         -------
         reconstructed_state : Qobj
@@ -170,9 +176,9 @@ class StateTomograph:
         if method == 'lin':
             self.reconstructed_state = self._point_estimate_lin(physical=physical)
         elif method == 'mle':
-            self.reconstructed_state = self._point_estimate_mle_chol(init=init)
+            self.reconstructed_state = self._point_estimate_mle_chol(init=init, max_iter=max_iter, tol=tol)
         elif method == 'mle-constr':
-            self.reconstructed_state = self._point_estimate_mle_chol_constr(init=init)
+            self.reconstructed_state = self._point_estimate_mle_chol_constr(init=init, max_iter=max_iter, tol=tol)
         elif method == 'mle-bloch':
             self.reconstructed_state = self._point_estimate_mle_bloch(physical=physical)
         else:
@@ -242,7 +248,7 @@ class StateTomograph:
             rho = _make_feasible(rho)
         return rho
 
-    def _point_estimate_mle_chol(self, init):
+    def _point_estimate_mle_chol(self, init, max_iter, tol):
         """Point estimate based on MLE with Cholesky parametrization"""
         if init == 'mixed':
             x0 = fully_mixed(self.state.n_qubits).matrix
@@ -251,7 +257,8 @@ class StateTomograph:
         else:
             raise ValueError('Invalid value for argument `init`')
         x0 = _matrix_to_real_tril_vec(x0)
-        opt_res = minimize(self._neg_log_likelihood_chol, x0, method='BFGS')
+        opt_res = minimize(self._neg_log_likelihood_chol, x0, method='BFGS',
+                           tol=tol, options={'maxiter': max_iter})
         matrix = _real_tril_vec_to_matrix(opt_res.x)
         return Qobj(matrix / np.trace(matrix))
 
@@ -266,7 +273,7 @@ class StateTomograph:
         log_likelihood = np.sum(self.results * np.log(probas + EPS)) / np.sum(self.n_measurements)
         return -log_likelihood
 
-    def _point_estimate_mle_chol_constr(self, init):
+    def _point_estimate_mle_chol_constr(self, init, max_iter, tol):
         """Point estimate based on constrained MLE with Cholesky parametrization"""
         constraints = [
             {'type': 'eq', 'fun': _is_unit_trace},
@@ -278,7 +285,8 @@ class StateTomograph:
         else:
             raise ValueError('Invalid value for argument `init`')
         x0 = _matrix_to_real_tril_vec(x0)
-        opt_res = minimize(self._neg_log_likelihood_chol, x0, constraints=constraints, method='SLSQP')
+        opt_res = minimize(self._neg_log_likelihood_chol, x0, constraints=constraints, method='SLSQP',
+                           tol=tol, options={'maxiter': max_iter})
         matrix = _real_tril_vec_to_matrix(opt_res.x)
         return Qobj(matrix / np.trace(matrix))
 
