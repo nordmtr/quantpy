@@ -137,7 +137,7 @@ class StateTomograph:
             self.results = results
             self.n_measurements = np.array(n_measurements)
 
-    def point_estimate(self, method='lin', physical=True, init='lin', max_iter=1000, tol=1e-5):
+    def point_estimate(self, method='lin', physical=True, init='lin', max_iter=100, tol=1e-3):
         """Reconstruct a density matrix from the data obtained in the experiment
 
         Parameters
@@ -163,10 +163,10 @@ class StateTomograph:
                 'lin' -- uses linear inversion point estimate as initial guess
                 'mixed' -- uses fully mixed state as initial guess
 
-        max_iter : int, default=1000 (optional)
+        max_iter : int, default=100 (optional)
             Number of iterations in MLE method
 
-        tol : float, default=1e-5 (optional)
+        tol : float, default=1e-3 (optional)
             Error tolerance in MLE method
 
         Returns
@@ -185,7 +185,7 @@ class StateTomograph:
             raise ValueError('Invalid value for argument `method`')
         return self.reconstructed_state
 
-    def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin',
+    def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin', tol=1e-3, max_iter=100,
                   use_new_estimate=False, state=None, kind='estim'):
         """Perform multiple tomography simulation on the preferred state with the same measurements number
         and POVM matrix, as in the preceding experiment. Count the distances to the bootstrapped states.
@@ -201,6 +201,10 @@ class StateTomograph:
             See :ref:`point_estimate` for detailed documentation
         init : str, default='lin' (optional)
             See :ref:`point_estimate` for detailed documentation
+        max_iter : int, default=100 (optional)
+            Number of iterations in MLE method
+        tol : float, default=1e-3 (optional)
+            Error tolerance in MLE method
         use_new_estimate : bool, default=False
             If False, uses the latest reconstructed state as a state to perform new tomographies on.
             If True and `state` is None, reconstruct a density matrix from the data obtained in previous experiment
@@ -215,17 +219,21 @@ class StateTomograph:
                 'target' -- CI for the target state built with bootstrap from point estimate only
                 'triangle' -- CI for the target state built with bootstrap from point estimate only
                               + triangle inequality
+
+        Returns
+        -------
+        dist : list
         """
         if not use_new_estimate:
             state = self.reconstructed_state
         elif state is None:
-            state = self.point_estimate(method=est_method, physical=physical, init=init)
+            state = self.point_estimate(method=est_method, physical=physical, init=init, tol=tol, max_iter=max_iter)
 
         dist = np.zeros(n_boot + 1)
         boot_tmg = self.__class__(state, self.dst)
         for i in range(n_boot):
             boot_tmg.experiment(self.n_measurements, self.POVM_matrix)
-            rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init)
+            rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init, tol=tol, max_iter=max_iter)
             if kind == 'estim':
                 dist[i + 1] = self.dst(rho, state)
             elif kind == 'target':
