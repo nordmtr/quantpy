@@ -2,14 +2,11 @@ import numpy as np
 import scipy.linalg as la
 import itertools as it
 
-from scipy.optimize import minimize
-
 from .state import StateTomograph
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..routines import (
     generate_single_entries, kron,
     _real_tril_vec_to_matrix,
-    _matrix_to_real_tril_vec,
     _out_ptrace_oper,
     _vec2mat, _mat2vec,
     _left_inv,
@@ -70,6 +67,7 @@ class ProcessTomograph:
     point_estimate()
         Reconstruct a channel from the data obtained in the experiment
     """
+
     def __init__(self, channel, input_states='proj4', dst='hs', input_impurity=0.05, _dep_trick=False):
         self.channel = channel
         if isinstance(dst, str):

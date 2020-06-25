@@ -16,6 +16,7 @@ class Basis:
         If 'trace', sets hermitian trace product in the matrix space as an inner product
             (A, B) = Tr(A @ B.H)
     """
+
     def __init__(self, elements, inner_product='trace'):
         self.elements = elements
         self.dim = len(elements)
