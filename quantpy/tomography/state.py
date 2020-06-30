@@ -6,6 +6,7 @@ from ..geometry import hs_dst, if_dst, trace_dst
 from ..qobj import Qobj, fully_mixed
 from ..measurements import generate_measurement_matrix
 from ..routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix
+from ..mhmc import MHMC, normalized_update
 
 
 def _is_positive(bloch_vec):  # works only for 1-qubit systems !!
@@ -184,6 +185,22 @@ class StateTomograph:
         else:
             raise ValueError('Invalid value for argument `method`')
         return self.reconstructed_state
+
+    def mhmc(self, n_boot, step=0.25, burn_steps=1000, use_new_estimate=False, state=None):
+        if not use_new_estimate:
+            state = self.reconstructed_state
+        elif state is None:
+            state = self.point_estimate(method='mle', physical=True)
+
+        target_logpdf = lambda x: -self._neg_log_likelihood_chol(x)
+        dim = 4 ** self.state.n_qubits
+        thinning = int(1 / step)
+        chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
+                     update_rule=normalized_update, symmetric=True)
+        samples = chain.sample(n_boot, thinning)
+        dist = np.asarray([self.dst(_real_tril_vec_to_matrix(tril_vec), state.matrix) for tril_vec in samples])
+        dist.sort()
+        return dist
 
     def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin', tol=1e-3, max_iter=100,
                   use_new_estimate=False, state=None, kind='estim'):
