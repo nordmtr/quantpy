@@ -187,6 +187,29 @@ class StateTomograph:
         return self.reconstructed_state
 
     def mhmc(self, n_boot, step=0.25, burn_steps=1000, use_new_estimate=False, state=None):
+        """Short summary.
+
+        Parameters
+        ----------
+        n_boot : int
+            Number of samples to be produced by MCMC.
+        step : float
+            Multiplier used in each step.
+        burn_steps : int
+            Steps for burning in.
+        use_new_estimate : bool, default=False
+            If False, uses the latest reconstructed state as a state to perform new tomographies on.
+            If True and `state` is None, reconstruct a density matrix from the data obtained in previous experiment
+            ans use it to perform new tomographies on.
+            If True and `state` is not None, use `state` as a state to perform new tomographies on.
+        state : Qobj or None, default=None
+            If not None and `use_new_estimate` is True, use it as a state to perform new tomographies on
+
+        Returns
+        -------
+        dist : np.array
+            Sorted list of distances between the reconstructed state and secondary samples.
+        """
         if not use_new_estimate:
             state = self.reconstructed_state
         elif state is None:
@@ -197,7 +220,7 @@ class StateTomograph:
         thinning = int(1 / step)
         chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
                      update_rule=normalized_update, symmetric=True)
-        samples = chain.sample(n_boot, thinning)
+        samples, _ = chain.sample(n_boot, thinning)
         dist = np.asarray([self.dst(_real_tril_vec_to_matrix(tril_vec), state.matrix) for tril_vec in samples])
         dist.sort()
         return dist
@@ -239,7 +262,8 @@ class StateTomograph:
 
         Returns
         -------
-        dist : list
+        dist : np.array
+            Sorted list of distances between the reconstructed state and secondary samples.
         """
         if not use_new_estimate:
             state = self.reconstructed_state
