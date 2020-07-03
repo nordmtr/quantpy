@@ -271,7 +271,7 @@ class StateTomograph:
         elif state is None:
             state = self.point_estimate(method=est_method, physical=physical, init=init, tol=tol, max_iter=max_iter)
 
-        dist = np.zeros(n_boot)
+        dist = np.empty(n_boot)
         boot_tmg = self.__class__(state, self.dst)
         for i in range(n_boot):
             boot_tmg.experiment(self.n_measurements, self.POVM_matrix)
