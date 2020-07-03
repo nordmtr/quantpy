@@ -186,7 +186,7 @@ class StateTomograph:
             raise ValueError('Invalid value for argument `method`')
         return self.reconstructed_state
 
-    def mhmc(self, n_boot, step=0.25, burn_steps=1000, thinning=4, use_new_estimate=False, state=None):
+    def mhmc(self, n_boot, step=0.25, burn_steps=1000, thinning=4, use_new_estimate=False, state=None, verbose=False):
         """Short summary.
 
         Parameters
@@ -205,7 +205,9 @@ class StateTomograph:
             ans use it to perform new tomographies on.
             If True and `state` is not None, use `state` as a state to perform new tomographies on.
         state : Qobj or None, default=None
-            If not None and `use_new_estimate` is True, use it as a state to perform new tomographies on
+            If not None and `use_new_estimate` is True, use it as a state to perform new tomographies on.
+        verbose: bool
+            If True, shows progress.
 
         Returns
         -------
@@ -220,7 +222,7 @@ class StateTomograph:
         target_logpdf = lambda x: -self._neg_log_likelihood_chol(x)
         dim = 4 ** self.state.n_qubits
         chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
-                     update_rule=normalized_update, symmetric=True)
+                     update_rule=normalized_update, symmetric=True, verbose=verbose)
         samples, acceptance_rate = chain.sample(n_boot, thinning)
         dist = np.asarray([self.dst(_real_tril_vec_to_matrix(tril_vec), state.matrix) for tril_vec in samples])
         dist.sort()
