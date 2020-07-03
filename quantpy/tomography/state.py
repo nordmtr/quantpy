@@ -222,8 +222,8 @@ class StateTomograph:
         target_logpdf = lambda x: -self._neg_log_likelihood_chol(x)
         dim = 4 ** self.state.n_qubits
         chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
-                     update_rule=normalized_update, symmetric=True, verbose=verbose)
-        samples, acceptance_rate = chain.sample(n_boot, thinning)
+                     update_rule=normalized_update, symmetric=True)
+        samples, acceptance_rate = chain.sample(n_boot, thinning, verbose=verbose)
         dist = np.asarray([self.dst(_real_tril_vec_to_matrix(tril_vec), state.matrix) for tril_vec in samples])
         dist.sort()
         return dist, acceptance_rate
