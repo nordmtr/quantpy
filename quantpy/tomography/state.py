@@ -217,14 +217,15 @@ class StateTomograph:
         elif state is None:
             state = self.point_estimate(method='mle', physical=True)
 
-        target_logpdf = lambda x: -self._neg_log_likelihood_chol(x)
+        def target_logpdf(x): -self._neg_log_likelihood_chol(x)
+
         dim = 4 ** self.state.n_qubits
         chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
                      update_rule=normalized_update, symmetric=True)
-        samples, _ = chain.sample(n_boot, thinning)
+        samples, acceptance_rate = chain.sample(n_boot, thinning)
         dist = np.asarray([self.dst(_real_tril_vec_to_matrix(tril_vec), state.matrix) for tril_vec in samples])
         dist.sort()
-        return dist
+        return dist, acceptance_rate
 
     def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin', tol=1e-3, max_iter=100,
                   use_new_estimate=False, state=None, kind='estim'):
