@@ -217,8 +217,7 @@ class StateTomograph:
         elif state is None:
             state = self.point_estimate(method='mle', physical=True)
 
-        def target_logpdf(x): -self._neg_log_likelihood_chol(x)
-
+        target_logpdf = lambda x: -self._neg_log_likelihood_chol(x)
         dim = 4 ** self.state.n_qubits
         chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
                      update_rule=normalized_update, symmetric=True)
