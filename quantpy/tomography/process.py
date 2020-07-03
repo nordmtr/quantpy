@@ -232,18 +232,18 @@ class ProcessTomograph:
             channel = self.point_estimate(method=method, states_physical=states_physical,
                                           states_init=states_init, cptp=cptp)
 
-        dist = [0]
+        dist = np.empty(n_boot)
         boot_tmg = self.__class__(channel, self.input_states, self.dst, self.input_impurity, _dep_trick=True)
-        for _ in range(n_boot):
+        for i in range(n_boot):
             boot_tmg.experiment(self.tomographs[0].n_measurements, POVM=self.tomographs[0].POVM_matrix)
             estim_channel = boot_tmg.point_estimate(method=method, states_physical=states_physical,
                                                     states_init=states_init, cptp=cptp)
             if kind == 'estim':
-                dist.append(self.dst(estim_channel.choi, channel.choi))
+                dist[i] = self.dst(estim_channel.choi, channel.choi)
             elif kind == 'target':
-                dist.append(self.dst(estim_channel.choi, self.channel.choi))
+                dist[i] = self.dst(estim_channel.choi, self.channel.choi)
             elif kind == 'triangle':
-                dist.append(self.dst(estim_channel.choi, channel.choi) + self.dst(channel.choi, self.channel.choi))
+                dist[i] = self.dst(estim_channel.choi, channel.choi) + self.dst(channel.choi, self.channel.choi)
             else:
                 raise ValueError('Invalid value for argument `kind`')
         dist.sort()

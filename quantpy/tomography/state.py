@@ -271,17 +271,17 @@ class StateTomograph:
         elif state is None:
             state = self.point_estimate(method=est_method, physical=physical, init=init, tol=tol, max_iter=max_iter)
 
-        dist = np.zeros(n_boot + 1)
+        dist = np.zeros(n_boot)
         boot_tmg = self.__class__(state, self.dst)
         for i in range(n_boot):
             boot_tmg.experiment(self.n_measurements, self.POVM_matrix)
             rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init, tol=tol, max_iter=max_iter)
             if kind == 'estim':
-                dist[i + 1] = self.dst(rho, state)
+                dist[i] = self.dst(rho, state)
             elif kind == 'target':
-                dist[i + 1] = self.dst(rho, self.state)
+                dist[i] = self.dst(rho, self.state)
             elif kind == 'triangle':
-                dist[i + 1] = self.dst(rho, state) + self.dst(state, self.state)
+                dist[i] = self.dst(rho, state) + self.dst(state, self.state)
             else:
                 raise ValueError('Invalid value for argument `kind`')
         dist.sort()
@@ -320,7 +320,7 @@ class StateTomograph:
         POVM_matrix = np.reshape(self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
                                  (-1, self.POVM_matrix.shape[-1]))
         probas = POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / np.sum(self.n_measurements)
+        log_likelihood = np.sum(self.results * np.log(probas + EPS))
         return -log_likelihood
 
     def _point_estimate_mle_chol_constr(self, init, max_iter, tol):
@@ -347,5 +347,5 @@ class StateTomograph:
         POVM_matrix = np.reshape(self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
                                  (-1, self.POVM_matrix.shape[-1]))
         probas = POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS)) / np.sum(self.n_measurements)
+        log_likelihood = np.sum(self.results * np.log(probas + EPS))
         return -log_likelihood
