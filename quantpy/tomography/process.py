@@ -194,7 +194,8 @@ class ProcessTomograph:
 
     def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
              use_new_estimate=False, channel=None, verbose=False):
-        """Short summary.
+        """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood distribution.
+        Count the distances between these samples and point estimate.
 
         Parameters
         ----------
@@ -224,7 +225,7 @@ class ProcessTomograph:
             Sorted list of distances between the reconstructed channel and secondary samples.
         """
         if not use_new_estimate:
-            channel = self.reconstructed_state
+            channel = self.reconstructed_channel
         elif channel is None:
             channel = self.point_estimate(method='lifp')
 

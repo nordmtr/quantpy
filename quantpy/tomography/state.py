@@ -188,7 +188,8 @@ class StateTomograph:
 
     def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
              use_new_estimate=False, state=None, verbose=False):
-        """Short summary.
+        """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood distribution.
+        Count the distances between these samples and point estimate.
 
         Parameters
         ----------
