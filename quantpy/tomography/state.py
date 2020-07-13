@@ -186,7 +186,7 @@ class StateTomograph:
             raise ValueError('Invalid value for argument `method`')
         return self.reconstructed_state
 
-    def mhmc(self, n_boot, step=0.25, burn_steps=1000, thinning=4, warm_start=False,
+    def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
              use_new_estimate=False, state=None, verbose=False):
         """Short summary.
 
@@ -222,7 +222,7 @@ class StateTomograph:
         elif state is None:
             state = self.point_estimate(method='mle', physical=True)
 
-        target_logpdf = lambda x: -self._neg_log_likelihood_chol(x)
+        target_logpdf = lambda x: -self._nll(x)
         dim = 4 ** self.state.n_qubits
         if not (warm_start and hasattr(self, 'chain')):
             self.chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
@@ -259,13 +259,6 @@ class StateTomograph:
             If True and `state` is not None, use `state` as a state to perform new tomographies on.
         state : Qobj or None, default=None
             If not None and `use_new_estimate` is True, use it as a state to perform new tomographies on
-        kind : str, default='est'
-            Type of confidence interval to build.
-            Possible values:
-                'estim' -- CI for the point estimate
-                'target' -- CI for the target state built with bootstrap from point estimate only
-                'triangle' -- CI for the target state built with bootstrap from point estimate only
-                              + triangle inequality
 
         Returns
         -------
@@ -282,14 +275,7 @@ class StateTomograph:
         for i in range(n_boot):
             boot_tmg.experiment(self.n_measurements, self.POVM_matrix)
             rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init, tol=tol, max_iter=max_iter)
-            if kind == 'estim':
-                dist[i] = self.dst(rho, state)
-            elif kind == 'target':
-                dist[i] = self.dst(rho, self.state)
-            elif kind == 'triangle':
-                dist[i] = self.dst(rho, state) + self.dst(state, self.state)
-            else:
-                raise ValueError('Invalid value for argument `kind`')
+            dist[i] = self.dst(rho, state)
         dist.sort()
         return dist
 
@@ -313,12 +299,12 @@ class StateTomograph:
         else:
             raise ValueError('Invalid value for argument `init`')
         x0 = _matrix_to_real_tril_vec(x0)
-        opt_res = minimize(self._neg_log_likelihood_chol, x0, method='BFGS',
+        opt_res = minimize(self._nll, x0, method='BFGS',
                            tol=tol, options={'maxiter': max_iter})
         matrix = _real_tril_vec_to_matrix(opt_res.x)
         return Qobj(matrix / np.trace(matrix))
 
-    def _neg_log_likelihood_chol(self, tril_vec):
+    def _nll(self, tril_vec):
         """Negative log-likelihood for MLE with Cholesky parametrization"""
         EPS = 1e-10
         matrix = _real_tril_vec_to_matrix(tril_vec)
@@ -341,12 +327,12 @@ class StateTomograph:
         else:
             raise ValueError('Invalid value for argument `init`')
         x0 = _matrix_to_real_tril_vec(x0)
-        opt_res = minimize(self._neg_log_likelihood_chol, x0, constraints=constraints, method='SLSQP',
+        opt_res = minimize(self._nll, x0, constraints=constraints, method='SLSQP',
                            tol=tol, options={'maxiter': max_iter})
         matrix = _real_tril_vec_to_matrix(opt_res.x)
         return Qobj(matrix / np.trace(matrix))
 
-    def _neg_log_likelihood_chol_constr(self, tril_vec):
+    def _nll_constr(self, tril_vec):
         """Negative log-likelihood for constrained MLE with Cholesky parametrization"""
         EPS = 1e-10
         rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
