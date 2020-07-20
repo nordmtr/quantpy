@@ -329,6 +329,12 @@ class Qobj(BaseQuantum):
 
 
 def fully_mixed(n_qubits=1):
-    """Return fully mixed state"""
+    """Return fully mixed state."""
     dim = 2 ** n_qubits
     return Qobj(np.eye(dim, dtype=np.complex128) / dim)
+
+
+def GHZ(n_qubits=3):
+    """Return GHZ state."""
+    ket = ([1] + [0] * (2 ** n_qubits - 2) + [1]) / np.sqrt(2)
+    return Qobj(ket, is_ket=True)
