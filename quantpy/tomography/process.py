@@ -106,13 +106,16 @@ class ProcessTomograph:
             A single string or a numpy array to construct a POVM matrix.
 
             Possible strings:
-                'proj' -- orthogonal projective measurement, 6^n_qubits rows
+                'proj' -- random orthogonal projective measurement, 6^n_qubits rows
+                'proj-set' -- true orthogonal projective measurement, set of POVMs
                 'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^n_qubits rows
 
             Possible numpy arrays:
                 2-D array with shape (*, 4) -- interpreted as POVM matrix for 1 qubit,
                 construct a POVM matrix for the whole system from tensor products of rows of this matrix
+                3-D array with shape (*, *, 4) -- same, but set of POVMs
                 2-D array with shape (*, 4^n_qubits) -- returns this matrix without any changes
+                3-D array with shape (*, *, 4^n_qubits) -- same, but set of POVMs
 
             See :ref:`generate_measurement_matrix` for more detailed documentation
 
@@ -128,10 +131,9 @@ class ProcessTomograph:
         for tmg in self.tomographs:
             tmg.experiment(n_measurements, POVM, warm_start=warm_start)
 
-    def point_estimate(self, method='lifp', cptp=True,
-                       n_iter=1000, tol=1e-10,
+    def point_estimate(self, method='lifp', cptp=True, n_iter=1000, tol=1e-10,
                        states_est_method='lin', states_physical=True, states_init='lin'):
-        """Reconstruct a Choi matrix from the data obtained in the experiment
+        """Reconstruct a Choi matrix from the data obtained in the experiment.
 
         Parameters
         ----------
@@ -214,7 +216,7 @@ class ProcessTomograph:
             If True and `channel` is None, reconstruct a density matrix from the data obtained in previous experiment
             ans use it to perform new tomographies on.
             If True and `channel` is not None, use `channel` as a channel to perform new tomographies on.
-        channel : Qobj or None, default=None
+        channel : Channel or None, default=None
             If not None and `use_new_estimate` is True, use it as a channel to perform new tomographies on
         verbose: bool
             If True, shows progress.
@@ -357,7 +359,7 @@ class ProcessTomograph:
             while self._nll(choi_vec + alpha * D) - self._nll(choi_vec) > gamma * alpha * np.dot(D, grad):
                 alpha /= 2
             new_choi_vec = choi_vec + alpha * D
-            if self.nll(choi_vec) - self.nll(new_choi_vec) > tol:
+            if self._nll(choi_vec) - self._nll(new_choi_vec) > tol:
                 break
             choi_vec = new_choi_vec
 

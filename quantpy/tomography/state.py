@@ -233,8 +233,8 @@ class StateTomograph:
         dist.sort()
         return dist, acceptance_rate
 
-    def bootstrap(self, n_boot, est_method='lin', physical=True, init='lin', tol=1e-3, max_iter=100,
-                  use_new_estimate=False, state=None, kind='estim'):
+    def bootstrap(self, n_boot, method='lin', physical=True, init='lin', tol=1e-3, max_iter=100,
+                  use_new_estimate=False, state=None):
         """Perform multiple tomography simulation on the preferred state with the same measurements number
         and POVM matrix, as in the preceding experiment. Count the distances to the bootstrapped states.
 
@@ -242,7 +242,7 @@ class StateTomograph:
         ----------
         n_boot : int
             Number of experiments to perform
-        est_method : str, default='lin'
+        method : str, default='lin'
             Method of reconstructing the density matrix
             See :ref:`point_estimate` for detailed documentation
         physical : bool, default=True (optional)
@@ -269,13 +269,13 @@ class StateTomograph:
         if not use_new_estimate:
             state = self.reconstructed_state
         elif state is None:
-            state = self.point_estimate(method=est_method, physical=physical, init=init, tol=tol, max_iter=max_iter)
+            state = self.point_estimate(method=method, physical=physical, init=init, tol=tol, max_iter=max_iter)
 
         dist = np.empty(n_boot)
         boot_tmg = self.__class__(state, self.dst)
         for i in range(n_boot):
             boot_tmg.experiment(self.n_measurements, self.POVM_matrix)
-            rho = boot_tmg.point_estimate(method=est_method, physical=physical, init=init, tol=tol, max_iter=max_iter)
+            rho = boot_tmg.point_estimate(method=method, physical=physical, init=init, tol=tol, max_iter=max_iter)
             dist[i] = self.dst(rho, state)
         dist.sort()
         return dist
