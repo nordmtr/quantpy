@@ -232,7 +232,7 @@ class ProcessTomograph:
             channel = self.point_estimate(method='lifp')
 
         target_logpdf = lambda x: -self._nll(x)
-        dim = 4 ** self.channel.n_qubits
+        dim = 16 ** self.channel.n_qubits
         if not (warm_start and hasattr(self, 'chain')):
             self.chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
                               update_rule=self._cptp_update_rule, symmetric=True)
