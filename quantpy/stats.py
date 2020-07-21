@@ -119,7 +119,7 @@ def get_CL_list_state(state, n_iter=1000, n_boot=1000, n_measurements=1000, meth
 
 def get_CL_list_channel(channel, n_iter=1000, n_boot=1000, n_measurements=1000, method='lifp', method_boot='lifp',
                         dst='hs', POVM='proj-set', input_states='proj4', cptp=True, tol=1e-3, states_physical=True,
-                        states_init='lin', states_est_method='lin', states_est_method_boot='lin',
+                        states_init='lin', states_est_method='lin', states_est_method_boot='lin', input_impurity=0.05,
                         max_iter=100, mhmc=False, step=0.01, burn_steps=1000, thinning=1, verbose=True):
     """Conducts `n_iter` experiments, constructs confidence intervals for each,
     computes confidence level that corresponds to the distance between
@@ -200,6 +200,9 @@ def get_CL_list_channel(channel, n_iter=1000, n_boot=1000, n_measurements=1000, 
 
     states_est_method_boot : str
         Method of reconstructing the bootstrapped samples. See method() documentation for the details.
+    input_impurity : float
+        Depolarize each input state using depolarizing channel with p = `input_impurity`
+        in order to avoid biased point estimate.
     max_iter : int (optional)
         Number of iterations in MLE method.
     tol : float (optional)
@@ -220,7 +223,7 @@ def get_CL_list_channel(channel, n_iter=1000, n_boot=1000, n_measurements=1000, 
     """
     results = np.empty(n_iter)
 
-    tmg = ProcessTomograph(channel, input_states, dst)
+    tmg = ProcessTomograph(channel, input_states, dst, input_impurity)
     cycle = tqdm(range(n_iter)) if verbose else range(n_iter)
 
     for i in cycle:
