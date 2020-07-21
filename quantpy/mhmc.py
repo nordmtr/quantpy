@@ -27,7 +27,7 @@ class MHMC:
     """
 
     def __init__(self, target_logpdf, jump_distr=None, step=0.01, burn_steps=100,
-                 dim=1, update_rule=None, symmetric=False):
+                 dim=1, update_rule=None, symmetric=False, x_init=None):
         self.target_logpdf = target_logpdf
         self.jump_distr = jump_distr if jump_distr is not None else multivariate_normal(mean=np.zeros(dim))
         self.step = step
@@ -35,12 +35,11 @@ class MHMC:
         self.dim = dim
         self.update_rule = update_rule if update_rule is not None else basic_update
         self.symmetric = symmetric
-
-        self.x_t = np.random.rand(dim)
+        self.x_t = x_init if x_init is not None else np.random.rand(dim)
         self.burned = False
 
     def sample(self, n_samples, thinning=1, verbose=False):
-        """Short summary.
+        """Generate `n_samples` from the target distribution.
 
         Parameters
         ----------
