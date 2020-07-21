@@ -188,8 +188,9 @@ class ProcessTomograph:
         else:
             raise ValueError('Incorrect value for argument `method`')
 
-    def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
-             use_new_estimate=False, channel=None, verbose=False):
+    def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False, method='lifp',
+             states_est_method='lin', states_physical=True, states_init='lin', use_new_estimate=False,
+             channel=None, verbose=False):
         """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood distribution.
         Count the distances between these samples and point estimate.
 
@@ -223,7 +224,8 @@ class ProcessTomograph:
         if not use_new_estimate:
             channel = self.reconstructed_channel
         elif channel is None:
-            channel = self.point_estimate(method='lifp')
+            channel = self.point_estimate(method, states_est_method=states_est_method,
+                                          states_physical=states_physical, states_init=states_init)
 
         target_logpdf = lambda x: -self._nll(x)
         dim = 16 ** self.channel.n_qubits

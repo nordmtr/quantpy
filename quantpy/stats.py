@@ -226,10 +226,12 @@ def get_CL_list_channel(channel, n_iter=1000, n_boot=1000, n_measurements=1000, 
     for i in cycle:
         tmg.experiment(n_measurements, POVM)
 
-        channel_hat = tmg.point_estimate(method, cptp, n_iter, tol, states_est_method, states_physical, states_init)
+        channel_hat = tmg.point_estimate(method, states_est_method=states_est_method,
+                                         states_physical=states_physical, states_init=states_init)
         delta = tmg.dst(channel.choi, channel_hat.choi)
         if mhmc:
-            distances, _ = tmg.mhmc(n_boot, step, burn_steps, thinning)
+            distances, _ = tmg.mhmc(n_boot, step, burn_steps, thinning, states_physical=states_physical,
+                                    states_est_method=states_est_method_boot, states_init=states_init)
         else:
             distances = tmg.bootstrap(n_boot, method_boot, cptp, n_iter, tol, states_physical=states_physical,
                                       states_est_method=states_est_method_boot, states_init=states_init)
