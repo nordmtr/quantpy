@@ -18,12 +18,6 @@ from ..basis import Basis
 from ..mhmc import MHMC
 
 
-def _tp_constraint(tril_vec):
-    choi = Qobj(_real_tril_vec_to_matrix(tril_vec))
-    rho_in = _vec2mat(_out_ptrace_oper(choi.n_qubits // 2) @ _mat2vec(choi.matrix))
-    return hs_dst(rho_in, np.eye(2 ** (choi.n_qubits // 2)))
-
-
 class ProcessTomograph:
     """Basic class for quantum process tomography.
 
@@ -397,3 +391,9 @@ def _generate_input_states(type, input_impurity, n_qubits, _dep_trick):
             input_state = depolarizing(input_impurity, n_qubits).transform(input_state)
         input_states_list.append(input_state)
     return input_states_list
+
+
+def _tp_constraint(tril_vec):
+    choi = Qobj(_real_tril_vec_to_matrix(tril_vec))
+    rho_in = _vec2mat(_out_ptrace_oper(choi.n_qubits // 2) @ _mat2vec(choi.matrix))
+    return hs_dst(rho_in, np.eye(2 ** (choi.n_qubits // 2)))

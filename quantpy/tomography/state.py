@@ -9,26 +9,6 @@ from ..routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_ma
 from ..mhmc import MHMC, normalized_update
 
 
-def _is_positive(bloch_vec):  # works only for 1-qubit systems !!
-    """Positivity constraint for minimize function based on the bloch vector norm"""
-    return 0.5 - la.norm(bloch_vec, ord=2)
-
-
-def _is_unit_trace(tril_vec):
-    """Unit trace constraint for minimize function"""
-    matrix = _real_tril_vec_to_matrix(tril_vec)
-    return np.trace(matrix) - 1
-
-
-def _make_feasible(qobj):
-    """Make the matrix positive semi-definite and with unit trace"""
-    EPS = 1e-15
-    v, U = la.eigh(qobj.matrix)
-    V = np.diag(np.maximum(EPS, v))  # positiveness
-    matrix = U @ V @ U.T.conj()
-    return Qobj(matrix / np.trace(matrix))
-
-
 class StateTomograph:
     """Basic class for quantum state tomography
 
@@ -342,3 +322,23 @@ class StateTomograph:
         probas = POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
         log_likelihood = np.sum(self.results * np.log(probas + EPS))
         return -log_likelihood
+
+
+def _is_positive(bloch_vec):  # works only for 1-qubit systems !!
+    """Positivity constraint for minimize function based on the bloch vector norm"""
+    return 0.5 - la.norm(bloch_vec, ord=2)
+
+
+def _is_unit_trace(tril_vec):
+    """Unit trace constraint for minimize function"""
+    matrix = _real_tril_vec_to_matrix(tril_vec)
+    return np.trace(matrix) - 1
+
+
+def _make_feasible(qobj):
+    """Make the matrix positive semi-definite and with unit trace"""
+    EPS = 1e-15
+    v, U = la.eigh(qobj.matrix)
+    V = np.diag(np.maximum(EPS, v))  # positiveness
+    matrix = U @ V @ U.T.conj()
+    return Qobj(matrix / np.trace(matrix))
