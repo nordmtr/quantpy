@@ -230,7 +230,7 @@ class ProcessTomograph:
         target_logpdf = lambda x: -self._nll(x)
         dim = 16 ** self.channel.n_qubits
         if not (warm_start and hasattr(self, 'chain')):
-            x_init = self._cptp_projection_vec(np.random.rand(dim))
+            x_init = _mat2vec(channel.choi.matrix)
             self.chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
                               update_rule=self._cptp_update_rule, symmetric=True, x_init=x_init)
         samples, acceptance_rate = self.chain.sample(n_boot, thinning, verbose=verbose)
