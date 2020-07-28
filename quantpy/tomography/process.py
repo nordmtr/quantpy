@@ -190,7 +190,7 @@ class ProcessTomograph:
 
     def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False, method='lifp',
              states_est_method='lin', states_physical=True, states_init='lin', use_new_estimate=False,
-             channel=None, verbose=False, return_matrices=False):
+             channel=None, verbose=False, return_samples=False):
         """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood distribution.
         Count the distances between these samples and point estimate.
 
@@ -215,7 +215,7 @@ class ProcessTomograph:
             If not None and `use_new_estimate` is True, use it as a channel to perform new tomographies on
         verbose : bool
             If True, shows progress.
-        return_matrices : bool
+        return_samples : bool
             If `return_matrices` returns additionally list of MHMC samples.
 
         Returns
@@ -224,8 +224,8 @@ class ProcessTomograph:
             Sorted list of distances between the reconstructed channel and secondary samples.
         acceptance_rate : float
             Fraction of accepted samples.
-        matrices : list of numpy 2D arrays
-            If `return_matrices` returns list of MHMC samples.
+        samples : list of numpy 2D arrays
+            If `return_samples` returns list of MHMC samples.
         """
         if not use_new_estimate:
             channel = self.reconstructed_channel
@@ -242,7 +242,7 @@ class ProcessTomograph:
         samples, acceptance_rate = self.chain.sample(n_boot, thinning, verbose=verbose)
         dist = np.asarray([self.dst(_vec2mat(choi_vec), channel.choi.matrix) for choi_vec in samples])
         dist.sort()
-        if return_matrices:
+        if return_samples:
             matrices = [_vec2mat(choi_vec) for choi_vec in samples]
             return dist, acceptance_rate, matrices
         return dist, acceptance_rate
