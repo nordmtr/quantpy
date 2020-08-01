@@ -1,13 +1,15 @@
 import numpy as np
 
 
-def generate_measurement_matrix(POVM='proj', n_qubits=1):
+def generate_measurement_matrix(POVM='proj', n_qubits=1, p=0):
     """Generates POVM matrix.
 
     Parameters
     ----------
     n_qubits : int, default=1
         Number of qubits
+    p : float, default=0
+        Add noise to each POVM: with probability `p` the outcome of each measurement is noisy.
     POVM : str or numpy 2-D or 3-D array, default='proj'
         A single string or a numpy array to construct a POVM matrix.
 
@@ -85,4 +87,8 @@ def generate_measurement_matrix(POVM='proj', n_qubits=1):
         POVM_matrix = POVM_1
         for _ in range(n_qubits - 1):
             POVM_matrix = np.kron(POVM_matrix, POVM_1)
+    if p > 0:
+        noisy_part = np.zeros((POVM_matrix.shape[0], 1, POVM_matrix.shape[2]))
+        noisy_part[..., 0] = 1
+        POVM_matrix = np.concatenate((POVM_matrix * (1 - p), noisy_part * p), axis=1)
     return POVM_matrix

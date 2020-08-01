@@ -88,7 +88,7 @@ class ProcessTomograph:
         self._ptrace_oper = _out_ptrace_oper(channel.n_qubits)
         self._ptrace_dag_ptrace = self._ptrace_oper.T.conj() @ self._ptrace_oper
 
-    def experiment(self, n_measurements, POVM='proj-set', warm_start=False):
+    def experiment(self, n_measurements, POVM='proj-set', warm_start=False, POVM_noise=0):
         """Simulate a real quantum process tomography by performing
         quantum state tomography on each of transformed input states.
 
@@ -113,6 +113,8 @@ class ProcessTomograph:
 
             See :ref:`generate_measurement_matrix` for more detailed documentation
 
+        POVM_noise : float, default=0
+            Add noise to each POVM: with probability `POVM_noise` the outcome of each measurement is noisy.
         warm_start : bool, default=False
             If True, do not overwrite the previous experiment results, add all results to those of the previous run
         """
@@ -123,7 +125,7 @@ class ProcessTomograph:
                 tmg = StateTomograph(output_state_true)
                 self.tomographs.append(tmg)
         for tmg in self.tomographs:
-            tmg.experiment(n_measurements, POVM, warm_start=warm_start)
+            tmg.experiment(n_measurements, POVM, warm_start=warm_start, POVM_noise=POVM_noise)
 
     def point_estimate(self, method='lifp', cptp=True, n_iter=1000, tol=1e-10,
                        states_est_method='lin', states_physical=True, states_init='lin'):

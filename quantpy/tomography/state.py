@@ -66,7 +66,7 @@ class StateTomograph:
         else:
             self.dst = dst
 
-    def experiment(self, n_measurements, POVM='proj-set', warm_start=False):
+    def experiment(self, n_measurements, POVM='proj-set', POVM_noise=0, warm_start=False):
         """Simulate a real quantum state tomography.
 
         Parameters
@@ -90,10 +90,12 @@ class StateTomograph:
 
             See :ref:`generate_measurement_matrix` for more detailed documentation
 
+        POVM_noise : float, default=0
+            Add noise to each POVM: with probability `POVM_noise` the outcome of each measurement is noisy.
         warm_start : bool, default=False
             If True, do not overwrite the previous experiment results, add all results to those of the previous run
         """
-        POVM_matrix = generate_measurement_matrix(POVM, self.state.n_qubits)
+        POVM_matrix = generate_measurement_matrix(POVM, self.state.n_qubits, POVM_noise)
         number_of_POVMs = POVM_matrix.shape[0]
 
         if isinstance(n_measurements, int):
