@@ -103,12 +103,12 @@ def get_CL_list_state(state, n_iter=1000, n_boot=1000, n_measurements=1000, meth
     for i in cycle:
         tmg.experiment(n_measurements, POVM, POVM_noise=POVM_noise)
 
-        state_hat = tmg.point_estimate(method, init, max_iter, tol)
+        state_hat = tmg.point_estimate(method, init=init, max_iter=max_iter, tol=tol)
         delta = tmg.dst(state, state_hat)
         if mhmc:
             distances, _ = tmg.mhmc(n_boot, step, burn_steps, thinning)
         else:
-            distances = tmg.bootstrap(n_boot, method_boot, physical, init, tol, max_iter)
+            distances = tmg.bootstrap(n_boot, method_boot, physical=physical, init=init, tol=tol, max_iter=max_iter)
         indices_falling_into_CL = np.where(delta > distances)[0]
         if len(indices_falling_into_CL) == 0:
             results[i] = 0
@@ -239,8 +239,9 @@ def get_CL_list_channel(channel, n_iter=1000, n_boot=1000, n_measurements=1000, 
             distances, _ = tmg.mhmc(n_boot, step, burn_steps, thinning, states_physical=states_physical,
                                     states_est_method=states_est_method_boot, states_init=states_init)
         else:
-            distances = tmg.bootstrap(n_boot, method_boot, cptp, n_iter, tol, states_physical=states_physical,
-                                      states_est_method=states_est_method_boot, states_init=states_init)
+            distances = tmg.bootstrap(n_boot, method_boot, cptp=cptp, n_iter=n_iter, tol=tol,
+                                      states_physical=states_physical, states_est_method=states_est_method_boot,
+                                      states_init=states_init)
         indices_falling_into_CL = np.where(delta > distances)[0]
         if len(indices_falling_into_CL) == 0:
             results[i] = 0
