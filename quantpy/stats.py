@@ -103,7 +103,7 @@ def get_CL_list_state(state, n_iter=1000, n_boot=1000, n_measurements=1000, meth
     for i in cycle:
         tmg.experiment(n_measurements, POVM, POVM_noise=POVM_noise)
 
-        state_hat = tmg.point_estimate(method, physical, init, max_iter, tol)
+        state_hat = tmg.point_estimate(method, init, max_iter, tol)
         delta = tmg.dst(state, state_hat)
         if mhmc:
             distances, _ = tmg.mhmc(n_boot, step, burn_steps, thinning)
@@ -233,8 +233,7 @@ def get_CL_list_channel(channel, n_iter=1000, n_boot=1000, n_measurements=1000, 
     for i in cycle:
         tmg.experiment(n_measurements, POVM, POVM_noise=POVM_noise)
 
-        channel_hat = tmg.point_estimate(method, states_est_method=states_est_method,
-                                         states_physical=states_physical, states_init=states_init)
+        channel_hat = tmg.point_estimate(method, states_est_method=states_est_method, states_init=states_init)
         delta = tmg.dst(channel.choi, channel_hat.choi)
         if mhmc:
             distances, _ = tmg.mhmc(n_boot, step, burn_steps, thinning, states_physical=states_physical,
