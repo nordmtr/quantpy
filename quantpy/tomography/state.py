@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.linalg as la
 from scipy.optimize import minimize
+from scipy.special import erf
 
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..qobj import Qobj, fully_mixed
@@ -167,6 +168,17 @@ class StateTomograph:
         else:
             raise ValueError('Invalid value for argument `method`')
         return self.reconstructed_state
+
+    def gaussian_interval(self, start=0, end=0.5, n_points=10000):
+        frequencies = self.results / self.results.sum()
+        POVM_matrix = np.reshape(self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
+                                 (-1, self.POVM_matrix.shape[-1]))
+        variances = frequencies * (1 - frequencies) / self.results.sum()
+        variance = variances.sum() * (1 - 2 / np.pi)
+        span = np.linspace(start, end, n_points)
+        deltas = 2 * span / np.linalg.norm(POVM_matrix, ord=np.inf) / np.sqrt(4 ** self.state.n_qubits - 1)
+        CLs = erf(deltas / np.sqrt(2 * variance))
+        return deltas, CLs
 
     def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
              use_new_estimate=False, state=None, verbose=False):
