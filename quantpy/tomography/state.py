@@ -1,12 +1,12 @@
 import numpy as np
 import scipy.linalg as la
+import scipy.stats as sts
 from scipy.optimize import minimize
-from scipy.special import erf
 
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..qobj import Qobj, fully_mixed
 from ..measurements import generate_measurement_matrix
-from ..routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix
+from ..routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix, l2_mean, l2_variance
 from ..mhmc import MHMC, normalized_update
 
 
@@ -105,9 +105,9 @@ class StateTomograph:
             raise ValueError('Wrong length for argument `n_measurements`')
 
         probas = np.einsum('ijk,k->ij', POVM_matrix, self.state.bloch) * (2 ** self.state.n_qubits)
-        results = [np.random.multinomial(n_measurements_for_POVM, probas_for_POVM)
-                   for probas_for_POVM, n_measurements_for_POVM in zip(probas, n_measurements)]
-        results = np.hstack(results)
+        raw_results = [np.random.multinomial(n_measurements_for_POVM, probas_for_POVM)
+                       for probas_for_POVM, n_measurements_for_POVM in zip(probas, n_measurements)]
+        results = np.hstack(raw_results)
 
         if warm_start:
             self.POVM_matrix = np.vstack((
@@ -118,6 +118,7 @@ class StateTomograph:
             self.n_measurements = np.hstack((self.n_measurements, n_measurements))
         else:
             self.POVM_matrix = POVM_matrix
+            self.raw_results = raw_results
             self.results = results
             self.n_measurements = np.array(n_measurements)
 
@@ -169,25 +170,47 @@ class StateTomograph:
             raise ValueError('Invalid value for argument `method`')
         return self.reconstructed_state
 
-    def gaussian_interval(self, start=0, end=0.5, n_points=10000):
+    def gamma_interval(self, n_points=1000):
+        """Use gamma distribution approximation to obtain confidence interval.
+
+        Parameters
+        ----------
+        n_points : int
+            Number of distances to get.
+
+        Returns
+        -------
+        dist : np.array
+            Sorted list of distances between the reconstructed state and secondary samples.
+        """
         frequencies = self.results / self.results.sum()
+        mean = l2_mean(frequencies, self.results.sum())
+        variance = l2_variance(frequencies, self.results.sum())
+        scale = variance / mean
+        shape = mean / scale
+        gamma = sts.gamma(a=shape, scale=scale)
+        CLs = np.linspace(0.001, 0.999, n_points)
+        dim = 2 ** self.state.n_qubits
+        if self.dst == hs_dst:
+            alpha = np.sqrt(dim / 2)
+        elif self.dst == trace_dst:
+            alpha = dim / 2
+        else:
+            raise NotImplementedError()
         POVM_matrix = np.reshape(self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
                                  (-1, self.POVM_matrix.shape[-1]))
-        variances = frequencies * (1 - frequencies) / self.results.sum()
-        variance = variances.sum() * (1 - 2 / np.pi)
-        span = np.linspace(start, end, n_points)
-        deltas = 2 * span / np.linalg.norm(POVM_matrix, ord=np.inf) / np.sqrt(4 ** self.state.n_qubits - 1)
-        CLs = erf(deltas / np.sqrt(2 * variance))
-        return deltas, CLs
+        A = _left_inv(POVM_matrix) / dim
+        dist = np.sqrt(gamma.ppf(CLs)) * alpha * np.linalg.norm(A, ord=2)
+        return dist
 
-    def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
+    def mhmc(self, n_points, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
              use_new_estimate=False, state=None, verbose=False):
         """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood distribution.
         Count the distances between these samples and point estimate.
 
         Parameters
         ----------
-        n_boot : int
+        n_points : int
             Number of samples to be produced by MCMC.
         step : float
             Multiplier used in each step.
@@ -223,19 +246,19 @@ class StateTomograph:
             x_init = _matrix_to_real_tril_vec(state.matrix)
             self.chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
                               update_rule=normalized_update, symmetric=True, x_init=x_init)
-        samples, acceptance_rate = self.chain.sample(n_boot, thinning, verbose=verbose)
+        samples, acceptance_rate = self.chain.sample(n_points, thinning, verbose=verbose)
         dist = np.asarray([self.dst(_real_tril_vec_to_matrix(tril_vec), state.matrix) for tril_vec in samples])
         dist.sort()
         return dist, acceptance_rate
 
-    def bootstrap(self, n_boot, method='lin', physical=True, init='lin', tol=1e-3, max_iter=100,
+    def bootstrap(self, n_points, method='lin', physical=True, init='lin', tol=1e-3, max_iter=100,
                   use_new_estimate=False, state=None):
         """Perform multiple tomography simulation on the preferred state with the same measurements number
         and POVM matrix, as in the preceding experiment. Count the distances to the bootstrapped states.
 
         Parameters
         ----------
-        n_boot : int
+        n_points : int
             Number of experiments to perform
         method : str, default='lin'
             Method of reconstructing the density matrix
@@ -266,9 +289,9 @@ class StateTomograph:
         elif state is None:
             state = self.point_estimate(method=method, physical=physical, init=init, tol=tol, max_iter=max_iter)
 
-        dist = np.empty(n_boot)
+        dist = np.empty(n_points)
         boot_tmg = self.__class__(state, self.dst)
-        for i in range(n_boot):
+        for i in range(n_points):
             boot_tmg.experiment(self.n_measurements, self.POVM_matrix)
             rho = boot_tmg.point_estimate(method=method, physical=physical, init=init, tol=tol, max_iter=max_iter)
             dist[i] = self.dst(rho, state)
