@@ -45,6 +45,25 @@ def join_gates(gates):
     return new_gate
 
 
+def l2_mean(frequencies, n_trials):
+    """Return the mean of the squared l2-norm of a vector (f-p), where `f` is an MLE estimate
+    of the `p` parameter of the multinomial distribution with `n_trials`."""
+    return np.sum(frequencies - frequencies ** 2) / n_trials
+
+
+def l2_variance(frequencies, n_trials):
+    """Return the variance of the squared l2-norm of a vector (f-p), where `f` is an MLE estimate
+    of the `p` parameter of the multinomial distribution with `n_trials`."""
+    return np.sum(
+        3 * frequencies[:, None] ** 2 * frequencies[None, :] ** 2
+        - 4 * np.diag(frequencies) ** 3
+        + 2 * np.diag(frequencies) ** 2
+        + frequencies[:, None] * frequencies[None, :]
+        - frequencies[:, None] ** 2 * frequencies[None, :]
+        - frequencies[:, None] * frequencies[None, :] ** 2
+    ) / n_trials ** 2 - l2_mean(frequencies, n_trials) ** 2
+
+
 def _out_ptrace_oper(n_qubits):
     """Construct a partial trace operator over output space for a bipartite system"""
     identity = np.eye(2 ** n_qubits)
