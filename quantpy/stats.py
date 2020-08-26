@@ -5,9 +5,10 @@ from .tomography.state import StateTomograph
 from .tomography.process import ProcessTomograph
 
 
-def get_CL_list_state(state, n_iter=1000, n_points=1000, n_measurements=1000, method='lin', method_boot='lin',
-                      dst='hs', POVM='proj-set', physical=True, init='lin', tol=1e-3, max_iter=100,
-                      interval='gamma', step=0.01, burn_steps=1000, thinning=1, verbose=True, POVM_noise=0):
+def get_CL_list_state(state, n_iter=1000, n_points=1000, interval='gamma', n_measurements=1000,
+                      method='lin', method_boot='lin', dst='hs', POVM='proj-set',
+                      physical=True, init='lin', tol=1e-3, max_iter=100,
+                      step=0.01, burn_steps=1000, thinning=1, verbose=True, POVM_noise=0):
     """Conducts `n_iter` experiments, constructs confidence intervals for each,
     computes confidence level that corresponds to the distance between
     the target state and the point estimate and returns a sorted list of these levels.
@@ -110,7 +111,7 @@ def get_CL_list_state(state, n_iter=1000, n_points=1000, n_measurements=1000, me
 
         state_hat = tmg.point_estimate(method, init=init, max_iter=max_iter, tol=tol)
         delta = tmg.dst(state, state_hat)
-        if interval == 'theo':
+        if interval == 'gamma':
             distances = tmg.gamma_interval(n_points)
         elif interval == 'mhmc':
             distances, _ = tmg.mhmc(n_points, step, burn_steps, thinning)
@@ -128,10 +129,11 @@ def get_CL_list_state(state, n_iter=1000, n_points=1000, n_measurements=1000, me
     return results
 
 
-def get_CL_list_channel(channel, n_iter=1000, n_points=1000, n_measurements=1000, method='lifp', method_boot='lifp',
-                        dst='hs', POVM='proj-set', input_states='proj4', cptp=True, tol=1e-3, states_physical=True,
-                        states_init='lin', states_est_method='lin', states_est_method_boot='lin', input_impurity=0.05,
-                        max_iter=100, mhmc=False, step=0.01, burn_steps=1000, thinning=1, verbose=True, POVM_noise=0):
+def get_CL_list_channel(channel, n_iter=1000, interval='gamma', n_points=1000, n_measurements=1000,
+                        method='lifp', method_boot='lifp', dst='hs', POVM='proj-set', input_states='proj4',
+                        cptp=True, tol=1e-3, states_physical=True, states_init='lin', states_est_method='lin',
+                        states_est_method_boot='lin', input_impurity=0.05, max_iter=100,
+                        step=0.01, burn_steps=1000, thinning=1, verbose=True, POVM_noise=0):
     """Conducts `n_iter` experiments, constructs confidence intervals for each,
     computes confidence level that corresponds to the distance between
     the target Choi matrix and the point estimate and returns a sorted list of these levels.
@@ -146,8 +148,13 @@ def get_CL_list_channel(channel, n_iter=1000, n_points=1000, n_measurements=1000
         Number of samples from the distribution to obtain.
     n_measurements : int or array-like
         Number of measurements to perform in the tomography.
-    mhmc : boolean
-        If True, uses Metropolis-Hastings Monte Carlo instead of bootstrapping to sample from the distribution.
+    interval : str
+        Method of constructing the interval.
+
+        Possible values:
+            'gamma' -- theoretical interval based on approximation with gamma distribution
+            'boot' -- bootstrapping from the point estimate
+            'mhmc' -- Metropolis-Hastings Monte Carlo
     method : str, default='lifp'
         Method of reconstructing the Choi matrix
 
@@ -244,13 +251,17 @@ def get_CL_list_channel(channel, n_iter=1000, n_points=1000, n_measurements=1000
 
         channel_hat = tmg.point_estimate(method, states_est_method=states_est_method, states_init=states_init)
         delta = tmg.dst(channel.choi, channel_hat.choi)
-        if mhmc:
+        if interval == 'gamma':
+            distances = tmg.gamma_interval(n_points)
+        elif interval == 'mhmc':
             distances, _ = tmg.mhmc(n_points, step, burn_steps, thinning, states_physical=states_physical,
                                     states_est_method=states_est_method_boot, states_init=states_init)
-        else:
+        elif interval == 'boot':
             distances = tmg.bootstrap(n_points, method_boot, cptp=cptp, n_iter=n_iter, tol=tol,
                                       states_physical=states_physical, states_est_method=states_est_method_boot,
                                       states_init=states_init)
+        else:
+            raise ValueError('Incorrect value for argument `interval`.')
         indices_falling_into_CL = np.where(delta > distances)[0]
         if len(indices_falling_into_CL) == 0:
             results[i] = 0
