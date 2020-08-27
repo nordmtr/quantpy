@@ -48,20 +48,20 @@ def join_gates(gates):
 def l2_mean(frequencies, n_trials):
     """Return the mean of the squared l2-norm of a vector (f-p), where `f` is an MLE estimate
     of the `p` parameter of the multinomial distribution with `n_trials`."""
-    return np.sum(frequencies - frequencies ** 2) / int(n_trials)
+    return np.einsum('ki->k', frequencies - frequencies ** 2) / n_trials
 
 
 def l2_variance(frequencies, n_trials):
     """Return the variance of the squared l2-norm of a vector (f-p), where `f` is an MLE estimate
     of the `p` parameter of the multinomial distribution with `n_trials`."""
-    return (np.sum(
-        3 * frequencies[:, None] ** 2 * frequencies[None, :] ** 2
-        - 4 * np.diag(frequencies) ** 3
-        + 2 * np.diag(frequencies) ** 2
-        + frequencies[:, None] * frequencies[None, :]
-        - frequencies[:, None] ** 2 * frequencies[None, :]
-        - frequencies[:, None] * frequencies[None, :] ** 2
-    ) - np.sum(frequencies - frequencies ** 2) ** 2) / int(n_trials) ** 2
+    return ((
+        3 * np.einsum('ki,kj->k', frequencies ** 2, frequencies ** 2)
+        + np.einsum('ki,kj->k', frequencies, frequencies)
+        - np.einsum('ki,kj->k', frequencies ** 2, frequencies)
+        - np.einsum('ki,kj->k', frequencies, frequencies ** 2)
+        - 4 * np.einsum('ki->k', frequencies ** 3)
+        + 2 * np.einsum('ki->k', frequencies ** 2)
+    ) - np.einsum('ki->k', frequencies - frequencies ** 2) ** 2) / n_trials ** 2
 
 
 def _out_ptrace_oper(n_qubits):

@@ -116,9 +116,10 @@ class StateTomograph:
             )) / (np.sum(self.n_measurements) + np.sum(n_measurements))
             self.results = np.hstack((self.results, results))
             self.n_measurements = np.hstack((self.n_measurements, n_measurements))
+            self.raw_results = np.vstack((self.raw_results, raw_results))
         else:
             self.POVM_matrix = POVM_matrix
-            self.raw_results = raw_results
+            self.raw_results = np.array(raw_results)
             self.results = results
             self.n_measurements = np.array(n_measurements)
 
@@ -183,9 +184,13 @@ class StateTomograph:
         dist : np.array
             Sorted list of distances between the reconstructed state and secondary samples.
         """
-        frequencies = self.results / self.results.sum()
-        mean = l2_mean(frequencies, self.results.sum())
-        variance = l2_variance(frequencies, self.results.sum())
+        long_n_measurements = self.n_measurements.astype(object)
+        measurement_ratios = long_n_measurements / long_n_measurements.sum()
+        frequencies = self.raw_results / self.n_measurements[:, None]
+        means = l2_mean(frequencies, long_n_measurements)
+        mean = np.sum(means * measurement_ratios ** 2)
+        variances = l2_variance(frequencies, long_n_measurements)
+        variance = np.sum(variances * measurement_ratios ** 4)
         scale = variance / mean
         shape = mean / scale
         gamma = sts.gamma(a=shape, scale=scale)
