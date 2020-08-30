@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg as la
+import scipy.stats as sts
 import itertools as it
 
 from .state import StateTomograph
@@ -10,6 +11,7 @@ from ..routines import (
     _out_ptrace_oper,
     _vec2mat, _mat2vec,
     _left_inv,
+    l2_mean, l2_variance
 )
 from ..qobj import Qobj, fully_mixed
 from ..channel import Channel, depolarizing
@@ -63,7 +65,7 @@ class ProcessTomograph:
         Reconstruct a channel from the data obtained in the experiment
     """
 
-    def __init__(self, channel, input_states='proj4', dst='hs', input_impurity=0.05, _dep_trick=False):
+    def __init__(self, channel, input_states='proj4', dst='hs', input_impurity=0, _dep_trick=False):
         self.channel = channel
         if isinstance(dst, str):
             if dst == 'hs':
@@ -189,6 +191,42 @@ class ProcessTomograph:
                 cptp=cptp, method=states_est_method, physical=states_physical, init=states_init)
         else:
             raise ValueError('Incorrect value for argument `method`')
+
+    def gamma_interval(self, n_points=1000):
+        """Use gamma distribution approximation to obtain confidence interval.
+
+        Parameters
+        ----------
+        n_points : int
+            Number of distances to get.
+
+        Returns
+        -------
+        dist : np.array
+            Sorted list of distances between the reconstructed state and secondary samples.
+        """
+        n_measurements = np.hstack([tmg.n_measurements for tmg in self.tomographs])
+        long_n_measurements = n_measurements.astype(object)
+        measurement_ratios = long_n_measurements / long_n_measurements.sum() * len(self.tomographs)
+        raw_results = np.vstack([tmg.raw_results for tmg in self.tomographs])
+        frequencies = raw_results / n_measurements[:, None]
+        means = l2_mean(frequencies, long_n_measurements)
+        mean = np.sum(means * measurement_ratios ** 2)
+        variances = l2_variance(frequencies, long_n_measurements)
+        variance = np.sum(variances * measurement_ratios ** 4)
+        scale = variance / mean
+        shape = mean / scale
+        gamma = sts.gamma(a=shape, scale=scale)
+        CLs = np.linspace(0.001, 0.999, n_points)
+        dim = 4 ** self.channel.n_qubits
+        if self.dst == hs_dst:
+            alpha = 1 / np.sqrt(2)
+        elif self.dst == trace_dst:
+            alpha = np.sqrt(dim) / 2
+        else:
+            raise NotImplementedError()
+        dist = np.sqrt(gamma.ppf(CLs)) * alpha * np.linalg.norm(self._lifp_oper_inv, ord=2)
+        return dist
 
     def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False, method='lifp',
              states_est_method='lin', states_physical=True, states_init='lin', use_new_estimate=False,
