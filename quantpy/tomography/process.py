@@ -90,7 +90,7 @@ class ProcessTomograph:
         self._ptrace_oper = _out_ptrace_oper(channel.n_qubits)
         self._ptrace_dag_ptrace = self._ptrace_oper.T.conj() @ self._ptrace_oper
 
-    def experiment(self, n_measurements, POVM='proj-set', warm_start=False, POVM_noise=0):
+    def experiment(self, n_measurements, POVM='proj-set', warm_start=False):
         """Simulate a real quantum process tomography by performing
         quantum state tomography on each of transformed input states.
 
@@ -115,8 +115,6 @@ class ProcessTomograph:
 
             See :ref:`generate_measurement_matrix` for more detailed documentation
 
-        POVM_noise : float, default=0
-            Add noise to each POVM: with probability `POVM_noise` the outcome of each measurement is noisy.
         warm_start : bool, default=False
             If True, do not overwrite the previous experiment results, add all results to those of the previous run
         """
@@ -127,7 +125,7 @@ class ProcessTomograph:
                 tmg = StateTomograph(output_state_true)
                 self.tomographs.append(tmg)
         for tmg in self.tomographs:
-            tmg.experiment(n_measurements, POVM, warm_start=warm_start, POVM_noise=POVM_noise)
+            tmg.experiment(n_measurements, POVM, warm_start=warm_start)
 
     def point_estimate(self, method='lifp', cptp=True, n_iter=1000, tol=1e-10,
                        states_est_method='lin', states_physical=True, states_init='lin'):
@@ -192,7 +190,7 @@ class ProcessTomograph:
         else:
             raise ValueError('Incorrect value for argument `method`')
 
-    def gamma_interval(self, n_points=1000):
+    def gamma_interval(self, n_points):
         """Use gamma distribution approximation to obtain confidence interval.
 
         Parameters
@@ -228,7 +226,7 @@ class ProcessTomograph:
         dist = np.sqrt(gamma.ppf(CLs)) * alpha * np.linalg.norm(self._lifp_oper_inv, ord=2)
         return dist
 
-    def mhmc(self, n_boot, step=0.01, burn_steps=1000, thinning=1, warm_start=False, method='lifp',
+    def mhmc(self, n_points, step=0.01, burn_steps=1000, thinning=1, warm_start=False, method='lifp',
              states_est_method='lin', states_physical=True, states_init='lin', use_new_estimate=False,
              channel=None, verbose=False, return_samples=False):
         """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood distribution.
@@ -236,7 +234,7 @@ class ProcessTomograph:
 
         Parameters
         ----------
-        n_boot : int
+        n_points : int
             Number of samples to be produced by MCMC.
         step : float
             Multiplier used in each step.
@@ -279,7 +277,7 @@ class ProcessTomograph:
             x_init = _mat2vec(channel.choi.matrix)
             self.chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
                               update_rule=self._cptp_update_rule, symmetric=True, x_init=x_init)
-        samples, acceptance_rate = self.chain.sample(n_boot, thinning, verbose=verbose)
+        samples, acceptance_rate = self.chain.sample(n_points, thinning, verbose=verbose)
         dist = np.asarray([self.dst(_vec2mat(choi_vec), channel.choi.matrix) for choi_vec in samples])
         dist.sort()
         if return_samples:
@@ -287,14 +285,14 @@ class ProcessTomograph:
             return dist, acceptance_rate, matrices
         return dist, acceptance_rate
 
-    def bootstrap(self, n_boot, method='lifp', cptp=True, n_iter=1000, tol=1e-10, use_new_estimate=False,
+    def bootstrap(self, n_points, method='lifp', cptp=True, tol=1e-10, use_new_estimate=False,
                   channel=None, states_est_method='lin', states_physical=True, states_init='lin'):
         """Perform multiple tomography simulation on the preferred channel with the same measurements number
         and POVM matrix, as in the preceding experiment. Count the distances to the bootstrapped Choi matrices.
 
         Parameters
         ----------
-        n_boot : int
+        n_points : int
             Number of experiments to perform
         method : str, default='lifp'
             Method of reconstructing the Choi matrix
@@ -322,15 +320,88 @@ class ProcessTomograph:
             channel = self.point_estimate(method=method, states_physical=states_physical,
                                           states_init=states_init, cptp=cptp)
 
-        dist = np.empty(n_boot)
+        dist = np.empty(n_points)
         boot_tmg = self.__class__(channel, self.input_states, self.dst, self.input_impurity, _dep_trick=True)
-        for i in range(n_boot):
+        for i in range(n_points):
             boot_tmg.experiment(self.tomographs[0].n_measurements, POVM=self.tomographs[0].POVM_matrix)
             estim_channel = boot_tmg.point_estimate(method=method, states_physical=states_physical,
                                                     states_init=states_init, cptp=cptp)
             dist[i] = self.dst(estim_channel.choi, channel.choi)
         dist.sort()
         return dist
+
+    def holder_interval(self, n_points, interval='gamma', method='lin', method_boot='lin',
+                        physical=True, init='lin', tol=1e-3, max_iter=100, step=0.01, burn_steps=1000, thinning=1):
+        """Conducts `n_iter` experiments, constructs confidence intervals for each,
+        computes confidence level that corresponds to the distance between
+        the target state and the point estimate and returns a sorted list of these levels.
+
+        Parameters
+        ----------
+        n_points : int
+            Number of distances to get.
+        interval : str
+            Method of constructing the interval.
+
+            Possible values:
+                'gamma' -- theoretical interval based on approximation with gamma distribution
+                'boot' -- bootstrapping from the point estimate
+                'mhmc' -- Metropolis-Hastings Monte Carlo
+        method : str
+            Method of reconstructing the density matrix
+
+            Possible values:
+                'lin' -- linear inversion
+                'mle' -- maximum likelihood estimation with Cholesky parameterization, unconstrained optimization
+                'mle-constr' -- same as 'mle', but optimization is constrained
+                'mle-bloch' -- maximum likelihood estimation with Bloch parametrization,
+                               constrained optimization (works only for 1-qubit systems)
+
+        method_boot : str
+            Method of reconstructing the bootstrapped samples. See method() documentation for the details.
+
+        physical : bool (optional)
+            For methods 'lin' and 'mle' reconstructed matrix may not lie in the physical domain.
+            If True, set negative eigenvalues to zeros and divide the matrix by its trace.
+
+        init : str (optional)
+            Methods using maximum likelihood estimation require the starting point for gradient descent.
+
+            Possible values:
+                'lin' -- uses linear inversion point estimate as initial guess.
+                'mixed' -- uses fully mixed state as initial guess.
+
+        max_iter : int (optional)
+            Number of iterations in MLE method.
+        tol : float (optional)
+            Error tolerance in MLE method.
+        step : float
+            Multiplier used in each step.
+        burn_steps : int
+            Steps for burning in.
+        thinning : int
+            Takes each `thinning` sample generated by MCMC.
+
+        Returns
+        -------
+        Numpy array
+            Sorted list of confidence levels.
+        """
+        if interval == 'gamma':
+            state_deltas = np.asarray([tmg.gamma_interval(n_points) for tmg in self.tomographs])
+        elif interval == 'mhmc':
+            state_deltas = np.asarray([tmg.mhmc(n_points, step, burn_steps, thinning)[0] for tmg in self.tomogrpahs])
+        elif interval == 'boot':
+            state_deltas = np.asarray([
+                tmg.bootstrap(n_points, method_boot, physical=physical, init=init, tol=tol, max_iter=max_iter)
+                for tmg in self.tomogrpahs
+            ])
+        else:
+            raise ValueError('Incorrect value for argument `interval`.')
+
+        coef = np.abs(np.einsum('ij,ik->jk', self._decomposed_single_entries, self._decomposed_single_entries.conj()))
+        deltas = np.sqrt(state_deltas.T @ coef @ state_deltas)
+        return deltas
 
     def cptp_projection(self, channel, n_iter=1000, tol=1e-12):
         """Implementation of an iterative CPTP projection subroutine"""

@@ -237,6 +237,8 @@ class StateTomograph:
         -------
         dist : np.array
             Sorted list of distances between the reconstructed state and secondary samples.
+        acceptance_rate : float
+            Fraction of samples accepted by the Metropolis-Hastings procedure
         """
         if not use_new_estimate:
             state = self.reconstructed_state
