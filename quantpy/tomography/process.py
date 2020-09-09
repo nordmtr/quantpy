@@ -10,9 +10,9 @@ from ..routines import (
     _real_tril_vec_to_matrix,
     _out_ptrace_oper,
     _vec2mat, _mat2vec,
-    _left_inv,
-    l2_mean, l2_variance
+    _left_inv
 )
+from ..stats import l2_mean, l2_variance
 from ..qobj import Qobj, fully_mixed
 from ..channel import Channel, depolarizing
 from ..measurements import generate_measurement_matrix
@@ -400,7 +400,8 @@ class ProcessTomograph:
             raise ValueError('Incorrect value for argument `interval`.')
 
         coef = np.abs(np.einsum('ij,ik->jk', self._decomposed_single_entries, self._decomposed_single_entries.conj()))
-        deltas = np.sqrt(state_deltas.T @ coef @ state_deltas)
+        state_deltas_composition = np.einsum('ik,jk->ijk', state_deltas, state_deltas)
+        deltas = np.sqrt(np.einsum('ijk,ij->k', state_deltas_composition, coef))
         return deltas
 
     def cptp_projection(self, channel, n_iter=1000, tol=1e-12):

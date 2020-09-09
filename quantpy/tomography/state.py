@@ -6,7 +6,8 @@ from scipy.optimize import minimize
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..qobj import Qobj, fully_mixed
 from ..measurements import generate_measurement_matrix
-from ..routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix, l2_mean, l2_variance
+from ..routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix
+from ..stats import l2_mean, l2_variance
 from ..mhmc import MHMC, normalized_update
 
 
