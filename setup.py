@@ -15,6 +15,8 @@ setuptools.setup(
     install_requires=[
         'numpy',
         'scipy',
+        'itertools',
+        'tqdm',
     ],
     packages=setuptools.find_packages(),
 )
