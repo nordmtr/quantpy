@@ -2,6 +2,17 @@
 
 A framework for quantum computations and quantum tomography simulations. Supports basic mathematical operations on quantum states, as well as partial traces and tensor products, measurements, quantum channels (aka CPTP maps), gates, quantum state tomography and calculating confidence intervals for the experiments.
 
+## Installation
+
+To install the package you need to clone this repository to your computer and install it using pip.
+```bash
+git clone https://github.com/esthete88/quantpy.git
+cd quantpy
+conda create -n repalette --file conda-requirements -c conda-forge -c pytorch-nightly
+conda activate repalette
+pip install -e .
+```
+
 ## Table of contents
 
 - [Features](#features)
@@ -9,7 +20,6 @@ A framework for quantum computations and quantum tomography simulations. Support
     - [Quantum channels and gates](#quantum-channels-and-gates)
     - [Quantum state tomography](#quantum-state-tomography)
     - [Quantum process tomography](#quantum-process-tomography)
-- [Installation](#installation)
 
 ## Features
 
@@ -97,12 +107,3 @@ Moreover, you can calculate confidence intervals for these reconstructed states 
 ### Quantum process tomography
 
 You can likewise perform quantum tomography of channels, as well as build confidence intervals by choosing a set of states, transforming them with channel and performing tomography on these output states. 
-
-## Installation
-
-To install the package you need to clone this repository to your computer and install it using pip.
-```bash
-git clone https://github.com/esthete88/quantpy.git
-cd quantpy
-pip install .
-```
