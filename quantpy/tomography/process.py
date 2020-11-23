@@ -202,7 +202,11 @@ class ProcessTomograph:
         -------
         dist : np.array
             Sorted list of distances between the reconstructed state and secondary samples.
+        CLs : np.array
+            List of corresponding confidence levels.
         """
+        if not hasattr(self, '_lifp_oper_inv'):
+            _ = self.point_estimate('lifp')
         n_measurements = np.hstack([tmg.n_measurements for tmg in self.tomographs])
         long_n_measurements = n_measurements.astype(object)
         measurement_ratios = long_n_measurements / long_n_measurements.sum() * len(self.tomographs)
@@ -224,7 +228,7 @@ class ProcessTomograph:
         else:
             raise NotImplementedError()
         dist = np.sqrt(gamma.ppf(CLs)) * alpha * np.linalg.norm(self._lifp_oper_inv, ord=2)
-        return dist
+        return dist, CLs
 
     def mhmc(self, n_points, step=0.01, burn_steps=1000, thinning=1, warm_start=False, method='lifp',
              states_est_method='lin', states_physical=True, states_init='lin', use_new_estimate=False,
@@ -260,6 +264,8 @@ class ProcessTomograph:
         -------
         dist : np.array
             Sorted list of distances between the reconstructed channel and secondary samples.
+        CLs : np.array
+            List of corresponding confidence levels.
         acceptance_rate : float
             Fraction of accepted samples.
         samples : list of numpy 2D arrays
@@ -280,10 +286,11 @@ class ProcessTomograph:
         samples, acceptance_rate = self.chain.sample(n_points, thinning, verbose=verbose)
         dist = np.asarray([self.dst(_vec2mat(choi_vec), channel.choi.matrix) for choi_vec in samples])
         dist.sort()
+        CLs = np.linspace(0, 1, len(dist))
         if return_samples:
             matrices = [_vec2mat(choi_vec) for choi_vec in samples]
-            return dist, acceptance_rate, matrices
-        return dist, acceptance_rate
+            return dist, CLs, acceptance_rate, matrices
+        return dist, CLs, acceptance_rate
 
     def bootstrap(self, n_points, method='lifp', cptp=True, tol=1e-10, use_new_estimate=False,
                   channel=None, states_est_method='lin', states_physical=True, states_init='lin'):
@@ -313,6 +320,13 @@ class ProcessTomograph:
             If not None and `use_new_estimate` is True, use it as a channel to perform new tomographies on
         cptp : bool, default=True
             If True, all bootstrap samples are projected onto CPTP space
+
+        Returns
+        -------
+        dist : np.array
+            Sorted list of distances between the reconstructed channel and secondary samples.
+        CLs : np.array
+            List of corresponding confidence levels.
         """
         if not use_new_estimate:
             channel = self.reconstructed_channel
@@ -328,7 +342,8 @@ class ProcessTomograph:
                                                     states_init=states_init, cptp=cptp)
             dist[i] = self.dst(estim_channel.choi, channel.choi)
         dist.sort()
-        return dist
+        CLs = np.linspace(0, 1, len(dist))
+        return dist, CLs
 
     def holder_interval(self, n_points, interval='gamma', method='lin', method_boot='lin',
                         physical=True, init='lin', tol=1e-3, max_iter=100, step=0.01, burn_steps=1000, thinning=1):
@@ -347,6 +362,8 @@ class ProcessTomograph:
                 'gamma' -- theoretical interval based on approximation with gamma distribution
                 'boot' -- bootstrapping from the point estimate
                 'mhmc' -- Metropolis-Hastings Monte Carlo
+                'sugiyama' -- 1306.4191 interval
+                'wang' -- 1808.09988 interval
         method : str
             Method of reconstructing the density matrix
 
@@ -384,25 +401,34 @@ class ProcessTomograph:
 
         Returns
         -------
-        Numpy array
-            Sorted list of confidence levels.
+        dist : np.array
+            Sorted list of distances between the reconstructed channel and secondary samples.
+        CLs : np.array
+            List of corresponding confidence levels.
         """
         if interval == 'gamma':
-            state_deltas = np.asarray([tmg.gamma_interval(n_points) for tmg in self.tomographs])
+            state_results = [tmg.gamma_interval(n_points) for tmg in self.tomographs]
         elif interval == 'mhmc':
-            state_deltas = np.asarray([tmg.mhmc(n_points, step, burn_steps, thinning)[0] for tmg in self.tomogrpahs])
+            state_results = [tmg.mhmc(n_points, step, burn_steps, thinning) for tmg in self.tomographs]
         elif interval == 'boot':
-            state_deltas = np.asarray([
+            state_results = [
                 tmg.bootstrap(n_points, method_boot, physical=physical, init=init, tol=tol, max_iter=max_iter)
-                for tmg in self.tomogrpahs
-            ])
+                for tmg in self.tomographs
+            ]
+        elif interval == 'sugiyama':
+            state_results = [tmg.sugiyama_interval(n_points) for tmg in self.tomographs]
+        elif interval == 'wang':
+            state_results = [tmg.wang_interval(n_points) for tmg in self.tomographs]
         else:
             raise ValueError('Incorrect value for argument `interval`.')
 
+        state_deltas = np.asarray([state_result[0] for state_result in state_results])
+        CLs = state_results[0][1]
+
         coef = np.abs(np.einsum('ij,ik->jk', self._decomposed_single_entries, self._decomposed_single_entries.conj()))
         state_deltas_composition = np.einsum('ik,jk->ijk', state_deltas, state_deltas)
-        deltas = np.sqrt(np.einsum('ijk,ij->k', state_deltas_composition, coef))
-        return deltas
+        dist = np.sqrt(np.einsum('ijk,ij->k', state_deltas_composition, coef))
+        return dist, CLs
 
     def cptp_projection(self, channel, n_iter=1000, tol=1e-12):
         """Implementation of an iterative CPTP projection subroutine"""

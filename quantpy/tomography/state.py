@@ -182,6 +182,8 @@ class StateTomograph:
         -------
         dist : np.array
             Sorted list of distances between the reconstructed state and secondary samples.
+        CLs : np.array
+            List of corresponding confidence levels.
         """
         long_n_measurements = self.n_measurements.astype(object)
         measurement_ratios = long_n_measurements / long_n_measurements.sum()
@@ -205,7 +207,7 @@ class StateTomograph:
                                  (-1, self.POVM_matrix.shape[-1]))
         A = _left_inv(POVM_matrix) / dim
         dist = np.sqrt(gamma.ppf(CLs)) * alpha * np.linalg.norm(A, ord=2)
-        return dist
+        return dist, CLs
 
     def mhmc(self, n_points, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
              use_new_estimate=False, state=None, verbose=False):
@@ -238,6 +240,8 @@ class StateTomograph:
         -------
         dist : np.array
             Sorted list of distances between the reconstructed state and secondary samples.
+        CLs : np.array
+            List of corresponding confidence levels.
         acceptance_rate : float
             Fraction of samples accepted by the Metropolis-Hastings procedure
         """
@@ -255,7 +259,8 @@ class StateTomograph:
         samples, acceptance_rate = self.chain.sample(n_points, thinning, verbose=verbose)
         dist = np.asarray([self.dst(_real_tril_vec_to_matrix(tril_vec), state.matrix) for tril_vec in samples])
         dist.sort()
-        return dist, acceptance_rate
+        CLs = np.linspace(0, 1, len(dist))
+        return dist, CLs, acceptance_rate
 
     def bootstrap(self, n_points, method='lin', physical=True, init='lin', tol=1e-3, max_iter=100,
                   use_new_estimate=False, state=None):
@@ -289,6 +294,8 @@ class StateTomograph:
         -------
         dist : np.array
             Sorted list of distances between the reconstructed state and secondary samples.
+        CLs : np.array
+            List of corresponding confidence levels.
         """
         if not use_new_estimate:
             state = self.reconstructed_state
@@ -302,7 +309,120 @@ class StateTomograph:
             rho = boot_tmg.point_estimate(method=method, physical=physical, init=init, tol=tol, max_iter=max_iter)
             dist[i] = self.dst(rho, state)
         dist.sort()
-        return dist
+        CLs = np.linspace(0, 1, len(dist))
+        return dist, CLs
+
+    # def sugiyama_interval(self, n_points=1000, dist=None):
+    #     """Construct a confidence interval based on Hoeffding inequality as in work 1306.4191 of Sugiyama et al.
+    #
+    #     Parameters
+    #     ----------
+    #     n_points : int
+    #         Number of distances to get.
+    #     dist : array-like
+    #         Sorted list of distances between the reconstructed state and secondary samples
+    #         where to calculate confidence levels.
+    #
+    #     Returns
+    #     -------
+    #     dist : np.array
+    #         Sorted list of distances between the reconstructed state and secondary samples.
+    #     CLs : np.array
+    #         List of corresponding confidence levels.
+    #     """
+    #     if dist is None:
+    #         dist = np.linspace(0, 1, n_points)
+    #     POVM_matrix = np.squeeze(self.POVM_matrix)
+    #     POVM_matrix = POVM_matrix[:, 1:] * np.sqrt(2 ** (self.state.n_qubits - 1))
+    #     inversed_POVM = _left_inv(POVM_matrix)
+    #     c_alpha = (np.max(inversed_POVM, axis=1) - np.min(inversed_POVM, axis=1)) ** 2
+    #     b = 8 / POVM_matrix.shape[1]
+    #     CLs = 1 - 2 * np.sum(np.exp(-b * dist[:, None] ** 2 * np.sum(self.n_measurements) / c_alpha[None, :]), axis=1)
+    #     return dist, CLs
+
+    def sugiyama_interval(self, n_points=1000, dist=None):
+        """Construct a confidence interval based on Hoeffding inequality as in work 1306.4191 of Sugiyama et al.
+
+        Parameters
+        ----------
+        n_points : int
+            Number of distances to get.
+        dist : array-like
+            Sorted list of distances between the reconstructed state and secondary samples
+            where to calculate confidence levels.
+
+        Returns
+        -------
+        dist : np.array
+            Sorted list of distances between the reconstructed state and secondary samples.
+        CLs : np.array
+            List of corresponding confidence levels.
+        """
+        EPS = 1e-15
+        if dist is None:
+            dist = np.linspace(0, 1, n_points)
+        POVM_matrix = np.reshape(self.POVM_matrix, (-1, self.POVM_matrix.shape[-1])) * 2 ** self.state.n_qubits
+        inversed_POVM = _left_inv(POVM_matrix).reshape((-1, self.POVM_matrix.shape[0], self.POVM_matrix.shape[1]))
+        measurement_ratios = self.n_measurements.sum() / self.n_measurements
+        c_alpha = np.sum((np.max(inversed_POVM, axis=-1) - np.min(inversed_POVM, axis=-1)) ** 2
+                         * measurement_ratios[None, :], axis=-1) + EPS
+        b = 4 / POVM_matrix.shape[1]
+        CLs = 1 - 2 * np.sum(np.exp(-b * dist[:, None] ** 2 * np.sum(self.n_measurements) / c_alpha[None, :]), axis=1)
+        return dist, CLs
+
+    def wang_interval(self, n_points):
+        """Construct a confidence interval based on Clopper-Pearson interval as in work 1808.09988 of Wang et al.
+
+        Parameters
+        ----------
+        n_points : int
+            Number of distances to get.
+
+        Returns
+        -------
+        dist : np.array
+            Sorted list of distances between the reconstructed state and secondary samples.
+        CLs : np.array
+            List of corresponding confidence levels.
+        """
+        # if self.POVM_matrix.shape[0] > 1:
+        #     raise ValueError('This method does not work with sets of POVMs. Use single POVM instead.')
+        EPS = 1e-15
+        rho = self.point_estimate('mle-constr')
+        dist = []
+        CLs = []
+        frequencies = np.clip(self.raw_results / self.n_measurements[:, None], EPS, 1 - EPS)
+        # print(frequencies)
+        # POVM_matrix = np.squeeze(self.POVM_matrix)
+        zero_state = Qobj([1] + [0] * (2 ** self.state.n_qubits - 1), is_ket=True)
+        one_state = Qobj([0] * (2 ** self.state.n_qubits - 1) + [1], is_ket=True)
+        if self.dst(rho, zero_state) >= self.dst(rho, one_state):
+            reference_state = zero_state
+        else:
+            reference_state = one_state
+
+        for frac in np.linspace(0, 1, n_points):
+            shifted_state = rho * (1 - frac**3) + reference_state * frac**3
+            # probas = POVM_matrix @ shifted_state.bloch * (2 ** shifted_state.n_qubits) + EPS
+            probas = np.clip(
+                np.einsum('ijk,k->ij', self.POVM_matrix, shifted_state.bloch) * 2 ** self.state.n_qubits, EPS, 1 - EPS)
+            delta = np.max(probas - frequencies)
+            freq_plus_delta = frequencies + delta
+            # print('*' * 30)
+            # print(probas)
+            # print('-' * 30)
+            # print(frequencies)
+            # print('-' * 30)
+            KL_divergence = frequencies * np.log(frequencies / freq_plus_delta) \
+                            + (1 - frequencies) * np.log((1 - frequencies) / np.clip(1 - freq_plus_delta, EPS, 1 - EPS))
+            KL_divergence = np.where(freq_plus_delta < 1 - EPS, KL_divergence, np.inf)
+            # print(KL_divergence)
+            epsilons = np.exp(-self.n_measurements[:, None] * KL_divergence)
+            # print(epsilons)
+
+            dist.append(self.dst(rho, shifted_state))
+            CLs.append(1 - np.sum(epsilons))
+        return np.asarray(sorted(dist)), np.asarray(sorted(CLs))
 
     def _point_estimate_lin(self, physical):
         """Point estimate based on linear inversion algorithm"""

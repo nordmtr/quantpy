@@ -110,18 +110,19 @@ def get_CL_list_state(state, n_iter=1000, n_points=1000, interval='gamma', n_mea
         state_hat = tmg.point_estimate(method, init=init, max_iter=max_iter, tol=tol)
         delta = tmg.dst(state, state_hat)
         if interval == 'gamma':
-            distances = tmg.gamma_interval(n_points)
+            distances, CLs = tmg.gamma_interval(n_points)
         elif interval == 'mhmc':
-            distances, _ = tmg.mhmc(n_points, step, burn_steps, thinning)
+            distances, CLs, _ = tmg.mhmc(n_points, step, burn_steps, thinning)
         elif interval == 'boot':
-            distances = tmg.bootstrap(n_points, method_boot, physical=physical, init=init, tol=tol, max_iter=max_iter)
+            distances, CLs = tmg.bootstrap(n_points, method_boot, physical=physical,
+                                           init=init, tol=tol, max_iter=max_iter)
         else:
             raise ValueError('Incorrect value for argument `interval`.')
         indices_falling_into_CL = np.where(delta > distances)[0]
         if len(indices_falling_into_CL) == 0:
             results[i] = 0
         else:
-            results[i] = indices_falling_into_CL[-1] / n_points
+            results[i] = CLs[indices_falling_into_CL[-1]]
 
     results = np.sort(results)
     return results
@@ -248,21 +249,21 @@ def get_CL_list_channel(channel, n_iter=1000, interval='gamma', n_points=1000, n
         channel_hat = tmg.point_estimate(method, states_est_method=states_est_method, states_init=states_init)
         delta = tmg.dst(channel.choi, channel_hat.choi)
         if interval == 'gamma':
-            distances = tmg.gamma_interval(n_points)
+            distances, CLs = tmg.gamma_interval(n_points)
         elif interval == 'mhmc':
-            distances, _ = tmg.mhmc(n_points, step, burn_steps, thinning, states_physical=states_physical,
-                                    states_est_method=states_est_method_boot, states_init=states_init)
+            distances, CLs, _ = tmg.mhmc(n_points, step, burn_steps, thinning, states_physical=states_physical,
+                                         states_est_method=states_est_method_boot, states_init=states_init)
         elif interval == 'boot':
-            distances = tmg.bootstrap(n_points, method_boot, cptp=cptp, n_iter=n_iter, tol=tol,
-                                      states_physical=states_physical, states_est_method=states_est_method_boot,
-                                      states_init=states_init)
+            distances, CLs = tmg.bootstrap(n_points, method_boot, cptp=cptp, n_iter=n_iter, tol=tol,
+                                           states_physical=states_physical, states_est_method=states_est_method_boot,
+                                           states_init=states_init)
         else:
             raise ValueError('Incorrect value for argument `interval`.')
         indices_falling_into_CL = np.where(delta > distances)[0]
         if len(indices_falling_into_CL) == 0:
             results[i] = 0
         else:
-            results[i] = indices_falling_into_CL[-1] / n_points
+            results[i] = CLs[indices_falling_into_CL[-1]]
 
     results = np.sort(results)
     return results
