@@ -77,10 +77,10 @@ class Qobj(BaseQuantum):
            [0.+0.j, 0.+0.j]])
     """
 
-    def __init__(self, data=None, is_ket=False):
+    def __init__(self, data, is_ket=False):
         if isinstance(data, self.__class__):
             self.__dict__ = deepcopy(data.__dict__)
-        elif data is not None:
+        else:
             self._types = set()  # Set of types which represent the state
             if is_ket:
                 data = _density(data)

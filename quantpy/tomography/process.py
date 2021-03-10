@@ -14,7 +14,7 @@ from ..routines import (
 )
 from ..stats import l2_mean, l2_variance
 from ..qobj import Qobj, fully_mixed
-from ..channel import Channel, depolarizing
+from ..channel import Channel
 from ..measurements import generate_measurement_matrix
 from ..basis import Basis
 from ..mhmc import MHMC
@@ -65,7 +65,7 @@ class ProcessTomograph:
         Reconstruct a channel from the data obtained in the experiment
     """
 
-    def __init__(self, channel, input_states='proj4', dst='hs', input_impurity=0, _dep_trick=False):
+    def __init__(self, channel, input_states='proj4', dst='hs', input_impurity=0):
         self.channel = channel
         if isinstance(dst, str):
             if dst == 'hs':
@@ -80,7 +80,8 @@ class ProcessTomograph:
             self.dst = dst
         self.input_states = input_states
         self.input_impurity = input_impurity
-        self.input_basis = Basis(_generate_input_states(input_states, input_impurity, channel.n_qubits, _dep_trick))
+        self.input_basis = Basis(
+            _generate_input_states(input_states, input_impurity, channel.n_qubits))
         if self.input_basis.dim != 4 ** channel.n_qubits:
             raise ValueError('Input states do not constitute a basis')
         self._decomposed_single_entries = np.array([
@@ -104,11 +105,13 @@ class ProcessTomograph:
             Possible strings:
                 'proj' -- random orthogonal projective measurement, 6^n_qubits rows
                 'proj-set' -- true orthogonal projective measurement, set of POVMs
-                'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher dimensions, 4^n_qubits rows
+                'sic' -- SIC POVM for 1-qubit systems and its tensor products for higher
+                dimensions, 4^n_qubits rows
 
             Possible numpy arrays:
                 2-D array with shape (*, 4) -- interpreted as POVM matrix for 1 qubit,
-                construct a POVM matrix for the whole system from tensor products of rows of this matrix
+                construct a POVM matrix for the whole system from tensor products of rows of this
+                matrix
                 3-D array with shape (*, *, 4) -- same, but set of POVMs
                 2-D array with shape (*, 4^n_qubits) -- returns this matrix without any changes
                 3-D array with shape (*, *, 4^n_qubits) -- same, but set of POVMs
@@ -116,7 +119,8 @@ class ProcessTomograph:
             See :ref:`generate_measurement_matrix` for more detailed documentation
 
         warm_start : bool, default=False
-            If True, do not overwrite the previous experiment results, add all results to those of the previous run
+            If True, do not overwrite the previous experiment results, add all results to those
+            of the previous run
         """
         if not warm_start:
             self.tomographs = []
@@ -139,7 +143,8 @@ class ProcessTomograph:
             Possible values:
                 'lifp' -- linear inversion
                 'pgdb' -- projected gradient descent (CPTP only)
-                'states' -- reconstruction of the Choi matrix using a basis of reconstructed quantum states
+                'states' -- reconstruction of the Choi matrix using a basis of reconstructed
+                quantum states
 
         cptp : bool, default=True
             If True, return a projection onto CPTP space.
@@ -149,13 +154,15 @@ class ProcessTomograph:
 
             Possible values:
                 'lin' -- linear inversion
-                'mle' -- maximum likelihood estimation with Cholesky parametrization, unconstrained optimization
+                'mle' -- maximum likelihood estimation with Cholesky parametrization,
+                unconstrained optimization
                 'mle-constr' -- same as 'mle', but optimization is constrained
                 'mle-bloch' -- maximum likelihood estimation with Bloch parametrization,
                                constrained optimization (works only for 1-qubit systems)
 
         states_physical : bool, default=True (optional)
-           For 'states' method defines if the point estimates of the quantum states should be physical
+           For 'states' method defines if the point estimates of the quantum states should be
+           physical
 
         states_init : str, default='lin' (optional)
            For 'states' method with MLE sets an initial point for gradient descent
@@ -168,7 +175,9 @@ class ProcessTomograph:
         -------
         reconstructed_channel : Channel
         """
+        dim = 2 ** self.channel.n_qubits
         self._lifp_oper = []
+        self._bloch_oper = []
         POVM_matrix = np.reshape(
             self.tomographs[0].POVM_matrix * self.tomographs[0].n_measurements[:, None, None]
             / np.sum(self.tomographs[0].n_measurements),
@@ -177,9 +186,15 @@ class ProcessTomograph:
         for inp_state, POVM_bloch in it.product(self.input_basis.elements, POVM_matrix):
             row = _mat2vec(np.kron(inp_state.matrix, Qobj(POVM_bloch).matrix.T))
             self._lifp_oper.append(row)
+            self._bloch_oper.append(np.kron(inp_state.T.bloch, POVM_bloch))
+
         self._lifp_oper = np.array(self._lifp_oper)
+        self._bloch_oper = np.array(self._bloch_oper) * dim ** 2
         self._lifp_oper_inv = _left_inv(self._lifp_oper)
+        self._bloch_oper_inv = _left_inv(self._bloch_oper)
+
         self._unnorm_results = np.hstack([stmg.results for stmg in self.tomographs])
+
         if method == 'lifp':
             return self._point_estimate_lifp(cptp=cptp)
         elif method == 'pgdb':
@@ -220,20 +235,23 @@ class ProcessTomograph:
         shape = mean / scale
         gamma = sts.gamma(a=shape, scale=scale)
         CLs = np.linspace(0.001, 0.999, n_points)
-        dim = 4 ** self.channel.n_qubits
+        dim = 2 ** self.channel.n_qubits
         if self.dst == hs_dst:
             alpha = 1 / np.sqrt(2)
         elif self.dst == trace_dst:
-            alpha = np.sqrt(dim) / 2
+            alpha = dim / 2
         else:
             raise NotImplementedError()
         dist = np.sqrt(gamma.ppf(CLs)) * alpha * np.linalg.norm(self._lifp_oper_inv, ord=2)
         return dist, CLs
 
-    def mhmc(self, n_points, step=0.01, burn_steps=1000, thinning=1, warm_start=False, method='lifp',
-             states_est_method='lin', states_physical=True, states_init='lin', use_new_estimate=False,
+    def mhmc(self, n_points, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
+             method='lifp',
+             states_est_method='lin', states_physical=True, states_init='lin',
+             use_new_estimate=False,
              channel=None, verbose=False, return_samples=False):
-        """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood distribution.
+        """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood
+        distribution.
         Count the distances between these samples and point estimate.
 
         Parameters
@@ -249,12 +267,16 @@ class ProcessTomograph:
         warm_start : bool
             If True, the warmed up chain is used.
         use_new_estimate : bool, default=False
-            If False, uses the latest reconstructed channel as a channel to perform new tomographies on.
-            If True and `channel` is None, reconstruct a density matrix from the data obtained in previous experiment
+            If False, uses the latest reconstructed channel as a channel to perform new
+            tomographies on.
+            If True and `channel` is None, reconstruct a density matrix from the data obtained in
+            previous experiment
             ans use it to perform new tomographies on.
-            If True and `channel` is not None, use `channel` as a channel to perform new tomographies on.
+            If True and `channel` is not None, use `channel` as a channel to perform new
+            tomographies on.
         channel : Channel or None, default=None
-            If not None and `use_new_estimate` is True, use it as a channel to perform new tomographies on
+            If not None and `use_new_estimate` is True, use it as a channel to perform new
+            tomographies on
         verbose : bool
             If True, shows progress.
         return_samples : bool
@@ -284,7 +306,8 @@ class ProcessTomograph:
             self.chain = MHMC(target_logpdf, step=step, burn_steps=burn_steps, dim=dim,
                               update_rule=self._cptp_update_rule, symmetric=True, x_init=x_init)
         samples, acceptance_rate = self.chain.sample(n_points, thinning, verbose=verbose)
-        dist = np.asarray([self.dst(_vec2mat(choi_vec), channel.choi.matrix) for choi_vec in samples])
+        dist = np.asarray(
+            [self.dst(_vec2mat(choi_vec), channel.choi.matrix) for choi_vec in samples])
         dist.sort()
         CLs = np.linspace(0, 1, len(dist))
         if return_samples:
@@ -294,8 +317,10 @@ class ProcessTomograph:
 
     def bootstrap(self, n_points, method='lifp', cptp=True, tol=1e-10, use_new_estimate=False,
                   channel=None, states_est_method='lin', states_physical=True, states_init='lin'):
-        """Perform multiple tomography simulation on the preferred channel with the same measurements number
-        and POVM matrix, as in the preceding experiment. Count the distances to the bootstrapped Choi matrices.
+        """Perform multiple tomography simulation on the preferred channel with the same
+        measurements number
+        and POVM matrix, as in the preceding experiment. Count the distances to the bootstrapped
+        Choi matrices.
 
         Parameters
         ----------
@@ -312,12 +337,16 @@ class ProcessTomograph:
         states_init : str, default='lin' (optional)
             See :ref:`point_estimate` for detailed documentation
         use_new_estimate : bool, default=False
-            If False, uses the latest reconstructed channel as a channel to perform new tomographies on.
-            If True and `channel` is None, reconstruct a density matrix from the data obtained in previous experiment
+            If False, uses the latest reconstructed channel as a channel to perform new
+            tomographies on.
+            If True and `channel` is None, reconstruct a density matrix from the data obtained in
+            previous experiment
             ans use it to perform new tomographies on.
-            If True and `channel` is not None, use `channel` as a channel to perform new tomographies on.
+            If True and `channel` is not None, use `channel` as a channel to perform new
+            tomographies on.
         channel : Qobj or None, default=None
-            If not None and `use_new_estimate` is True, use it as a channel to perform new tomographies on
+            If not None and `use_new_estimate` is True, use it as a channel to perform new
+            tomographies on
         cptp : bool, default=True
             If True, all bootstrap samples are projected onto CPTP space
 
@@ -335,9 +364,10 @@ class ProcessTomograph:
                                           states_init=states_init, cptp=cptp)
 
         dist = np.empty(n_points)
-        boot_tmg = self.__class__(channel, self.input_states, self.dst, self.input_impurity, _dep_trick=True)
+        boot_tmg = self.__class__(channel, self.input_states, self.dst, self.input_impurity)
         for i in range(n_points):
-            boot_tmg.experiment(self.tomographs[0].n_measurements, POVM=self.tomographs[0].POVM_matrix)
+            boot_tmg.experiment(self.tomographs[0].n_measurements,
+                                POVM=self.tomographs[0].POVM_matrix)
             estim_channel = boot_tmg.point_estimate(method=method, states_physical=states_physical,
                                                     states_init=states_init, cptp=cptp)
             dist[i] = self.dst(estim_channel.choi, channel.choi)
@@ -346,7 +376,8 @@ class ProcessTomograph:
         return dist, CLs
 
     def holder_interval(self, n_points, interval='gamma', method='lin', method_boot='lin',
-                        physical=True, init='lin', tol=1e-3, max_iter=100, step=0.01, burn_steps=1000, thinning=1):
+                        physical=True, init='lin', tol=1e-3, max_iter=100, step=0.01,
+                        burn_steps=1000, thinning=1, wang_mode='coarse'):
         """Conducts `n_iter` experiments, constructs confidence intervals for each,
         computes confidence level that corresponds to the distance between
         the target state and the point estimate and returns a sorted list of these levels.
@@ -369,20 +400,23 @@ class ProcessTomograph:
 
             Possible values:
                 'lin' -- linear inversion
-                'mle' -- maximum likelihood estimation with Cholesky parameterization, unconstrained optimization
+                'mle' -- maximum likelihood estimation with Cholesky parameterization,
+                unconstrained optimization
                 'mle-constr' -- same as 'mle', but optimization is constrained
                 'mle-bloch' -- maximum likelihood estimation with Bloch parametrization,
                                constrained optimization (works only for 1-qubit systems)
 
         method_boot : str
-            Method of reconstructing the bootstrapped samples. See method() documentation for the details.
+            Method of reconstructing the bootstrapped samples. See method() documentation for the
+            details.
 
         physical : bool (optional)
             For methods 'lin' and 'mle' reconstructed matrix may not lie in the physical domain.
             If True, set negative eigenvalues to zeros and divide the matrix by its trace.
 
         init : str (optional)
-            Methods using maximum likelihood estimation require the starting point for gradient descent.
+            Methods using maximum likelihood estimation require the starting point for gradient
+            descent.
 
             Possible values:
                 'lin' -- uses linear inversion point estimate as initial guess.
@@ -398,6 +432,8 @@ class ProcessTomograph:
             Steps for burning in.
         thinning : int
             Takes each `thinning` sample generated by MCMC.
+        wang_mode : str
+            Mode for Wang et al. method
 
         Returns
         -------
@@ -409,23 +445,26 @@ class ProcessTomograph:
         if interval == 'gamma':
             state_results = [tmg.gamma_interval(n_points) for tmg in self.tomographs]
         elif interval == 'mhmc':
-            state_results = [tmg.mhmc(n_points, step, burn_steps, thinning) for tmg in self.tomographs]
+            state_results = [tmg.mhmc(n_points, step, burn_steps, thinning) for tmg in
+                             self.tomographs]
         elif interval == 'boot':
             state_results = [
-                tmg.bootstrap(n_points, method_boot, physical=physical, init=init, tol=tol, max_iter=max_iter)
+                tmg.bootstrap(n_points, method_boot, physical=physical, init=init, tol=tol,
+                              max_iter=max_iter)
                 for tmg in self.tomographs
             ]
         elif interval == 'sugiyama':
             state_results = [tmg.sugiyama_interval(n_points) for tmg in self.tomographs]
         elif interval == 'wang':
-            state_results = [tmg.wang_interval(n_points) for tmg in self.tomographs]
+            state_results = [tmg.wang_interval(n_points, mode=wang_mode) for tmg in self.tomographs]
         else:
             raise ValueError('Incorrect value for argument `interval`.')
 
         state_deltas = np.asarray([state_result[0] for state_result in state_results])
         CLs = state_results[0][1]
 
-        coef = np.abs(np.einsum('ij,ik->jk', self._decomposed_single_entries, self._decomposed_single_entries.conj()))
+        coef = np.abs(np.einsum('ij,ik->jk', self._decomposed_single_entries,
+                                self._decomposed_single_entries.conj()))
         state_deltas_composition = np.einsum('ik,jk->ijk', state_deltas, state_deltas)
         dist = np.sqrt(np.einsum('ijk,ij->k', state_deltas_composition, coef))
         return dist, CLs
@@ -448,7 +487,8 @@ class ProcessTomograph:
             y += y_diff
             x_diff = self.cp_projection(Channel(_vec2mat(y + q)), vectorized=True) - x
             x += x_diff
-            stop_criterion_value += 2 * (np.abs(np.sum(y_diff.T.conj() * q)) + np.abs(np.sum(x_diff.T.conj() * p)))
+            stop_criterion_value += 2 * (
+                        np.abs(np.sum(y_diff.T.conj() * q)) + np.abs(np.sum(x_diff.T.conj() * p)))
             p_diff = x - y
             p += p_diff
             q_diff = y - x
@@ -463,8 +503,8 @@ class ProcessTomograph:
         dim = 2 ** channel.n_qubits
         choi_vec = _mat2vec(channel.choi.matrix)
         tp_choi_vec = choi_vec + (
-            self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim))
-            - self._ptrace_dag_ptrace @ choi_vec
+                self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim))
+                - self._ptrace_dag_ptrace @ choi_vec
         ) / dim
         if vectorized:
             return tp_choi_vec
@@ -485,7 +525,8 @@ class ProcessTomograph:
         return self._cptp_projection_vec(noncptp_x_prime)
 
     def _point_estimate_lifp(self, cptp):
-        self.frequencies = np.hstack([stmg.results / stmg.results.sum() for stmg in self.tomographs])
+        self.frequencies = np.hstack(
+            [stmg.results / stmg.results.sum() for stmg in self.tomographs])
         self.reconstructed_channel = Channel(_vec2mat(self._lifp_oper_inv @ self.frequencies))
         if cptp:
             self.reconstructed_channel = self.cptp_projection(self.reconstructed_channel)
@@ -500,7 +541,8 @@ class ProcessTomograph:
             grad = -self._lifp_oper.T.conj() @ (self._unnorm_results / probas)
             D = self._cptp_projection_vec(choi_vec - grad / mu) - choi_vec
             alpha = 1
-            while self._nll(choi_vec + alpha * D) - self._nll(choi_vec) > gamma * alpha * np.dot(D, grad):
+            while self._nll(choi_vec + alpha * D) - self._nll(choi_vec) > gamma * alpha * np.dot(D,
+                                                                                                 grad):
                 alpha /= 2
             new_choi_vec = choi_vec + alpha * D
             if self._nll(choi_vec) - self._nll(new_choi_vec) > tol:
@@ -530,14 +572,14 @@ class ProcessTomograph:
         return self.reconstructed_channel
 
 
-def _generate_input_states(type, input_impurity, n_qubits, _dep_trick):
+def _generate_input_states(type, input_impurity, n_qubits):
     """Generate input states to use in quantum process tomography"""
+    if isinstance(type, list):
+        return type
     input_states_list = []
     for input_state_bloch in np.squeeze(generate_measurement_matrix(type, n_qubits)):
         input_state = Qobj(input_state_bloch)
         input_state /= input_state.trace()
-        if _dep_trick:
-            input_state = depolarizing(input_impurity, n_qubits).transform(input_state)
         input_states_list.append(input_state)
     return input_states_list
 

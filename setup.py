@@ -12,11 +12,5 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     author='Dmitry Norkin',
     author_email='nordmtr@gmail.com',
-    install_requires=[
-        'numpy',
-        'scipy',
-        'itertools',
-        'tqdm',
-    ],
     packages=setuptools.find_packages(),
 )
