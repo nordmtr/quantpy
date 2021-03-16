@@ -1,12 +1,4 @@
-python
-pip
-setuptools
-wheel
-pytorch
-torchvision
 scikit-learn
-jupyterlab
-ipywidgets
 pandas
 tqdm
 numpy

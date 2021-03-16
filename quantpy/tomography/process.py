@@ -86,7 +86,7 @@ class ProcessTomograph:
         self._ptrace_oper = _out_ptrace_oper(channel.n_qubits)
         self._ptrace_dag_ptrace = self._ptrace_oper.T.conj() @ self._ptrace_oper
 
-    def experiment(self, n_measurements, POVM='proj-set', warm_start=False):
+    def experiment(self, n_measurements, povm='proj-set', warm_start=False):
         """Simulate a real quantum process tomography by performing
         quantum state tomography on each of transformed input states.
 
@@ -94,7 +94,7 @@ class ProcessTomograph:
         ----------
         n_measurements : int
             Number of measurements to perform in the tomography
-        POVM : str or numpy 2-D array, default='proj'
+        povm : str or numpy 2-D array, default='proj'
             A single string or a numpy array to construct a POVM matrix.
 
             Possible strings:
@@ -124,7 +124,7 @@ class ProcessTomograph:
                 tmg = StateTomograph(output_state_true)
                 self.tomographs.append(tmg)
         for tmg in self.tomographs:
-            tmg.experiment(n_measurements, POVM, warm_start=warm_start)
+            tmg.experiment(n_measurements, povm, warm_start=warm_start)
 
     def point_estimate(self, method='lifp', cptp=True, n_iter=1000, tol=1e-10,
                        states_est_method='lin', states_physical=True, states_init='lin'):
@@ -173,15 +173,15 @@ class ProcessTomograph:
         dim = 2 ** self.channel.n_qubits
         self._lifp_oper = []
         self._bloch_oper = []
-        POVM_matrix = np.reshape(
-            self.tomographs[0].POVM_matrix * self.tomographs[0].n_measurements[:, None, None]
+        povm_matrix = np.reshape(
+            self.tomographs[0].povm_matrix * self.tomographs[0].n_measurements[:, None, None]
             / np.sum(self.tomographs[0].n_measurements),
-            (-1, self.tomographs[0].POVM_matrix.shape[-1])
+            (-1, self.tomographs[0].povm_matrix.shape[-1])
         )
-        for inp_state, POVM_bloch in it.product(self.input_basis.elements, POVM_matrix):
-            row = _mat2vec(np.kron(inp_state.matrix, Qobj(POVM_bloch).matrix.T))
+        for inp_state, povm_bloch in it.product(self.input_basis.elements, povm_matrix):
+            row = _mat2vec(np.kron(inp_state.matrix, Qobj(povm_bloch).matrix.T))
             self._lifp_oper.append(row)
-            self._bloch_oper.append(np.kron(inp_state.T.bloch, POVM_bloch))
+            self._bloch_oper.append(np.kron(inp_state.T.bloch, povm_bloch))
 
         self._lifp_oper = np.array(self._lifp_oper)
         self._bloch_oper = np.array(self._bloch_oper) * dim ** 2

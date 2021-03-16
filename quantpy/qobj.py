@@ -11,7 +11,8 @@ from .base_quantum import BaseQuantum
 
 
 class Qobj(BaseQuantum):
-    """Basic class for representing quantum objects, such as quantum states and measurement operators
+    """Basic class for representing quantum objects, such as quantum states and measurement
+    operators
 
     This class supports all simple math operations, as well as a collection of common
     state/operator operations.
@@ -164,7 +165,8 @@ class Qobj(BaseQuantum):
         return Qobj(rho.reshape(2 ** len(keep), 2 ** len(keep)))
 
     def schmidt(self):
-        """Return Schmidt decomposition of the quantum object, if it is pure and consists of 2 subsystems.
+        """Return Schmidt decomposition of the quantum object, if it is pure and consists of 2
+        subsystems.
 
         Returns
         -------
@@ -269,9 +271,9 @@ class Qobj(BaseQuantum):
                     s_re = _format_float(np.real(d))
                     s_im = _format_float(np.imag(d))
                     if np.imag(d) > 0.0:
-                        return (s + "(" + s_re + "+" + s_im + "j)")
+                        return s + "(" + s_re + "+" + s_im + "j)"
                     else:
-                        return (s + "(" + s_re + s_im + "j)")
+                        return s + "(" + s_re + s_im + "j)"
 
         if M > 10 and N > 10:
             # truncated matrix output
@@ -341,6 +343,7 @@ def fully_mixed(n_qubits=1):
     return Qobj(np.eye(dim, dtype=np.complex128) / dim)
 
 
+# noinspection PyPep8Naming
 def GHZ(n_qubits=3):
     """Return GHZ state."""
     ket = ([1] + [0] * (2 ** n_qubits - 2) + [1]) / np.sqrt(2)

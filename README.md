@@ -8,8 +8,8 @@ To install the package you need to clone this repository to your computer and in
 ```bash
 git clone https://github.com/esthete88/quantpy.git
 cd quantpy
-conda create -n repalette --file conda-requirements -c conda-forge -c pytorch-nightly
-conda activate repalette
+conda create -n quantpy --file conda-requirements
+conda activate quantpy
 pip install -e .
 ```
 

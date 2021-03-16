@@ -29,7 +29,8 @@ class MHMC:
     def __init__(self, target_logpdf, jump_distr=None, step=0.01, burn_steps=100,
                  dim=1, update_rule=None, symmetric=False, x_init=None):
         self.target_logpdf = target_logpdf
-        self.jump_distr = jump_distr if jump_distr is not None else multivariate_normal(mean=np.zeros(dim))
+        self.jump_distr = (jump_distr if jump_distr is not None
+                           else multivariate_normal(mean=np.zeros(dim)))
         self.step = step
         self.burn_steps = burn_steps
         self.dim = dim

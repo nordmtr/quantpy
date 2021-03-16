@@ -41,7 +41,7 @@ class StateTomograph:
     ----------
     n_measurements : float
         Total number of measurements made during tomography
-    POVM_matrix : numpy 2-D array
+    povm_matrix : numpy 2-D array
         Numpy array with shape (*, 4^n_qubits), representing the measurement matrix.
         Rows are bloch vectors that sum into unity
     reconstructed_state : Qobj
@@ -74,14 +74,14 @@ class StateTomograph:
         else:
             self.dst = dst
 
-    def experiment(self, n_measurements, POVM='proj-set', warm_start=False):
+    def experiment(self, n_measurements, povm='proj-set', warm_start=False):
         """Simulate a real quantum state tomography.
 
         Parameters
         ----------
         n_measurements : int or array-like
             Number of measurements to perform in the tomography
-        POVM : str or numpy 2-D array, default='proj'
+        povm : str or numpy 2-D array, default='proj'
             A single string or a numpy array to construct a POVM matrix.
 
             Possible strings:
@@ -104,30 +104,30 @@ class StateTomograph:
             If True, do not overwrite the previous experiment results, add all results to those
             of the previous run
         """
-        POVM_matrix = generate_measurement_matrix(POVM, self.state.n_qubits)
-        number_of_POVMs = POVM_matrix.shape[0]
+        povm_matrix = generate_measurement_matrix(povm, self.state.n_qubits)
+        number_of_povms = povm_matrix.shape[0]
 
         if isinstance(n_measurements, int):
-            n_measurements = np.ones(number_of_POVMs) * n_measurements
-        elif len(n_measurements) != number_of_POVMs:
+            n_measurements = np.ones(number_of_povms) * n_measurements
+        elif len(n_measurements) != number_of_povms:
             raise ValueError('Wrong length for argument `n_measurements`')
 
-        probas = np.einsum('ijk,k->ij', POVM_matrix, self.state.bloch) * (2 ** self.state.n_qubits)
+        probas = np.einsum('ijk,k->ij', povm_matrix, self.state.bloch) * (2 ** self.state.n_qubits)
         probas = np.clip(probas, 0, 1)
-        raw_results = [np.random.multinomial(n_measurements_for_POVM, probas_for_POVM)
-                       for probas_for_POVM, n_measurements_for_POVM in zip(probas, n_measurements)]
+        raw_results = [np.random.multinomial(n_measurements_for_povm, probas_for_povm)
+                       for probas_for_povm, n_measurements_for_povm in zip(probas, n_measurements)]
         results = np.hstack(raw_results)
 
         if warm_start:
-            self.POVM_matrix = np.vstack((
-                self.POVM_matrix * np.sum(self.n_measurements),
-                POVM_matrix * np.sum(n_measurements),
+            self.povm_matrix = np.vstack((
+                self.povm_matrix * np.sum(self.n_measurements),
+                povm_matrix * np.sum(n_measurements),
             )) / (np.sum(self.n_measurements) + np.sum(n_measurements))
             self.results = np.hstack((self.results, results))
             self.n_measurements = np.hstack((self.n_measurements, n_measurements))
             self.raw_results = np.vstack((self.raw_results, raw_results))
         else:
-            self.POVM_matrix = POVM_matrix
+            self.povm_matrix = povm_matrix
             self.raw_results = np.array(raw_results)
             self.results = results
             self.n_measurements = np.array(n_measurements)
@@ -186,10 +186,10 @@ class StateTomograph:
     def _point_estimate_lin(self, physical):
         """Point estimate based on linear inversion algorithm"""
         frequencies = self.results / self.results.sum()
-        POVM_matrix = np.reshape(
-            self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
-            (-1, self.POVM_matrix.shape[-1]))
-        bloch_vec = _left_inv(POVM_matrix) @ frequencies / (2 ** self.state.n_qubits)
+        povm_matrix = np.reshape(
+            self.povm_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
+            (-1, self.povm_matrix.shape[-1]))
+        bloch_vec = _left_inv(povm_matrix) @ frequencies / (2 ** self.state.n_qubits)
         rho = Qobj(bloch_vec)
         if physical:
             rho = _make_feasible(rho)
@@ -214,10 +214,10 @@ class StateTomograph:
         EPS = 1e-10
         matrix = _real_tril_vec_to_matrix(tril_vec)
         rho = Qobj(matrix / np.trace(matrix))
-        POVM_matrix = np.reshape(
-            self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
-            (-1, self.POVM_matrix.shape[-1]))
-        probas = POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
+        povm_matrix = np.reshape(
+            self.povm_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
+            (-1, self.povm_matrix.shape[-1]))
+        probas = povm_matrix @ rho.bloch * (2 ** self.state.n_qubits)
         log_likelihood = np.sum(self.results * np.log(probas + EPS))
         return -log_likelihood
 
@@ -233,6 +233,7 @@ class StateTomograph:
         else:
             raise ValueError('Invalid value for argument `init`')
         x0 = _matrix_to_real_tril_vec(x0)
+        # noinspection PyTypeChecker
         opt_res = minimize(self._nll, x0, constraints=constraints, method='SLSQP',
                            tol=tol, options={'maxiter': max_iter})
         matrix = _real_tril_vec_to_matrix(opt_res.x)
@@ -242,10 +243,10 @@ class StateTomograph:
         """Negative log-likelihood for constrained MLE with Cholesky parametrization"""
         EPS = 1e-10
         rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
-        POVM_matrix = np.reshape(
-            self.POVM_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
-            (-1, self.POVM_matrix.shape[-1]))
-        probas = POVM_matrix @ rho.bloch * (2 ** self.state.n_qubits)
+        povm_matrix = np.reshape(
+            self.povm_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
+            (-1, self.povm_matrix.shape[-1]))
+        probas = povm_matrix @ rho.bloch * (2 ** self.state.n_qubits)
         log_likelihood = np.sum(self.results * np.log(probas + EPS))
         return -log_likelihood
 

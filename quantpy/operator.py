@@ -76,6 +76,7 @@ class Operator(BaseQuantum):
 
 # One-qubit gates
 
+# noinspection PyPep8Naming
 def PHASE(theta):
     return Operator([
         [1, 0],
@@ -83,6 +84,7 @@ def PHASE(theta):
     ])
 
 
+# noinspection PyPep8Naming
 def RX(theta):
     return Operator([
         [np.cos(theta/2), -1j * np.sin(theta/2)],
@@ -90,6 +92,7 @@ def RX(theta):
     ])
 
 
+# noinspection PyPep8Naming
 def RY(theta):
     return Operator([
         [np.cos(theta/2), -np.sin(theta/2)],
@@ -97,6 +100,7 @@ def RY(theta):
     ])
 
 
+# noinspection PyPep8Naming
 def RZ(theta):
     return Operator([
         [np.exp(-0.5j*theta), 0],
@@ -157,4 +161,5 @@ def _choi_to_kraus(choi):
     EPS = 1e-15
     eigvals, eigvecs = choi.eig()
     eigvecs = list(eigvecs.T)
-    return [Operator(_vec2mat(vec) * np.sqrt(val)) for val, vec in zip(eigvals, eigvecs) if abs(val) > EPS]
+    return [Operator(_vec2mat(vec) * np.sqrt(val)) for val, vec in zip(eigvals, eigvecs)
+            if abs(val) > EPS]
