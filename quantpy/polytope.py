@@ -4,9 +4,6 @@ import random
 
 from numba import njit
 
-from .qobj import Qobj
-from .geometry import hs_dst
-
 
 def compute_polytope_volume(polytope):
     """Compute the volume of the polytope approximately
@@ -32,11 +29,28 @@ def compute_polytope_volume(polytope):
 def find_max_distance_to_polytope(A, b, target_point_bloch, start_point_bloch, n_points=500,
                                   discard_closer=False, hit_and_run=True):
     """Compute the distance between the target point and the farthest point in the polytope
-    using hit and run algorithm.
+    using hit and run algorithm. Polytope is defined by H-representation: Ax <= b.
 
     Parameters
     ----------
-    polytope : polytope.Polytope
+    A : np.array
+    b : np.array
+    target_point_bloch
+    start_point_bloch : np.array
+        Reduced bloch vector of the starting point
+    n_points : int
+        Number of points to sample in polytope
+    discard_closer : bool
+        Determines whether to discard directions, which have negative scalar product
+        with (target - start) vector
+    hit_and_run : bool
+        If True use the hit and run algorithm, otherwise simply check directions
+        from the starting point
+
+    Returns
+    -------
+    float
+        The distance between the target point and the farthest point in the polytope
     """
     EPS = 1e-13
     dim = A.shape[1]
@@ -65,6 +79,25 @@ def find_max_distance_to_polytope(A, b, target_point_bloch, start_point_bloch, n
 
 @njit
 def find_farthest_polytope_point(A, b, start_point, direction, tol=1e-15, init_alpha=1):
+    """Find the farthest point in the polytope in the selected direction.
+    Polytope is defined by H-representation: Ax <= b.
+
+    Parameters
+    ----------
+    A : np.array
+    b : np.array
+    start_point : np.array
+        Reduced bloch vector of the starting point
+    direction: np.array
+        Direction in reduced bloch space
+    tol : float
+        Determines the precision of finding the point
+    init_alpha : float
+        Initial coefficient before the dimension vector
+    Returns
+    -------
+
+    """
     step = alpha = init_alpha
     diff_start = np.min(b - A @ start_point)
     while True:
