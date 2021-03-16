@@ -5,8 +5,10 @@ import polytope as pc
 import scipy.linalg as la
 import scipy.stats as sts
 from scipy.optimize import minimize
+from tqdm.notebook import tqdm
 
-from ..geometry import hs_dst, if_dst, trace_dst, compute_polytope_volume
+from ..geometry import hs_dst, if_dst, trace_dst
+from ..polytope import compute_polytope_volume, find_max_distance_to_polytope
 from ..qobj import Qobj, fully_mixed
 from ..measurements import generate_measurement_matrix
 from ..routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix
@@ -387,7 +389,7 @@ class StateTomograph:
             List of corresponding confidence levels.
         """
         EPS = 1e-15
-        rho = self.point_estimate('lin')
+        rho = self.point_estimate('lin', physical=False)
         dim = 2 ** self.state.n_qubits
         bloch_dim = dim ** 2 - 1
 
@@ -404,46 +406,35 @@ class StateTomograph:
             coef2 = np.linalg.norm(A, ord=2) ** 2 * prob_dim
             dist = np.linspace(0, 1, n_points)
             deltas = np.maximum(dist / coef1, dist ** 2 / coef2)
-        elif mode == 'exact':
-            deltas = np.linspace(0, 0.2, n_points)
-            dist = []
-            A = POVM_matrix[:, 1:]
-            for delta in deltas:
-                b = np.clip(np.hstack(frequencies) + delta, EPS, 1 - EPS) - POVM_matrix[:, 0] / dim
-                vertices = pypoman.compute_polytope_vertices(A, b)
-                vertex_states = [_make_feasible(Qobj(np.hstack(([1 / dim], vertex)))) for vertex in
-                                 vertices]
-                if vertices:
-                    max_dist = max([self.dst(vertex_state, rho) for vertex_state in
-                                    vertex_states])
-                else:
-                    max_dist = 0
-                dist.append(max_dist)
-        elif mode == 'bbox':
-            deltas = np.linspace(0, 0.2, n_points)
-            dist = []
-            A = POVM_matrix[:, 1:]
-            for delta in deltas:
-                b = np.clip(np.hstack(frequencies) + delta, EPS, 1 - EPS) - POVM_matrix[:, 0] / dim
-                lb, ub = pc.Polytope(A, b).bounding_box
-                volume = np.prod(ub - lb)
-                radius = ((volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim)
-                          / math.sqrt(math.pi))
-                dist.append(radius)
-                # dist.append(volume ** (1 / (dim ** 2 - 1)) / 2)
-        elif mode == 'approx':
-            deltas = np.linspace(0, 0.2, n_points)
-            dist = []
-            A = POVM_matrix[:, 1:]
-            for delta in deltas:
-                b = np.clip(np.hstack(frequencies) + delta, EPS, 1 - EPS) - POVM_matrix[:, 0] / dim
-                volume = compute_polytope_volume(pc.Polytope(A, b))
-                radius = ((volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim)
-                          / math.sqrt(math.pi))
-                dist.append(radius)
-                # dist.append(volume ** (1 / (dim ** 2 - 1)) / 2)
         else:
-            raise ValueError("Invalid value for argument `mode`.")
+            deltas = np.linspace(0, 0.2, n_points)
+            dist = []
+            A = np.ascontiguousarray(POVM_matrix[:, 1:])
+            for delta in tqdm(deltas):
+                b = np.clip(np.hstack(frequencies) + delta, EPS, 1 - EPS) - POVM_matrix[:, 0] / dim
+                if mode == 'exact':
+                    vertices = pypoman.compute_polytope_vertices(A, b)
+                    vertex_states = [_make_feasible(Qobj(vertex)) for vertex in vertices]
+                    if vertices:
+                        radius = max([self.dst(vertex_state, rho) for vertex_state in
+                                      vertex_states])
+                    else:
+                        radius = 0
+                elif mode == 'bbox':
+                    lb, ub = pc.Polytope(A, b).bounding_box
+                    volume = np.prod(ub - lb)
+                    radius = ((volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim)
+                              / math.sqrt(math.pi))
+                elif mode == 'approx':
+                    volume = compute_polytope_volume(pc.Polytope(A, b))
+                    radius = ((volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim)
+                              / math.sqrt(math.pi))
+                elif mode == 'hit_and_run':
+                    rho_bloch = rho.bloch[1:]
+                    radius = find_max_distance_to_polytope(A, b, rho_bloch, rho_bloch)
+                else:
+                    raise ValueError("Invalid value for argument `mode`.")
+                dist.append(radius)
 
         CLs = []
         for delta in deltas:
