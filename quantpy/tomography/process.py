@@ -42,9 +42,6 @@ class ProcessTomograph:
 
         Interface for a custom measure:
             custom_measure(A: Qobj, B: Qobj) -> float
-    input_impurity : float, default=0.05
-        Depolarize each input state using depolarizing channel with p = `input_impurity`
-        in order to avoid biased point estimate
 
     Attributes
     ----------
@@ -65,7 +62,7 @@ class ProcessTomograph:
         Reconstruct a channel from the data obtained in the experiment
     """
 
-    def __init__(self, channel, input_states='proj4', dst='hs', input_impurity=0):
+    def __init__(self, channel, input_states='proj4', dst='hs'):
         self.channel = channel
         if isinstance(dst, str):
             if dst == 'hs':
@@ -79,9 +76,7 @@ class ProcessTomograph:
         else:
             self.dst = dst
         self.input_states = input_states
-        self.input_impurity = input_impurity
-        self.input_basis = Basis(
-            _generate_input_states(input_states, input_impurity, channel.n_qubits))
+        self.input_basis = Basis(_generate_input_states(input_states, channel.n_qubits))
         if self.input_basis.dim != 4 ** channel.n_qubits:
             raise ValueError('Input states do not constitute a basis')
         self._decomposed_single_entries = np.array([
@@ -246,10 +241,8 @@ class ProcessTomograph:
         return dist, CLs
 
     def mhmc(self, n_points, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
-             method='lifp',
-             states_est_method='lin', states_physical=True, states_init='lin',
-             use_new_estimate=False,
-             channel=None, verbose=False, return_samples=False):
+             method='lifp', states_est_method='lin', states_physical=True, states_init='lin',
+             use_new_estimate=False, channel=None, verbose=False, return_samples=False):
         """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood
         distribution.
         Count the distances between these samples and point estimate.
@@ -364,7 +357,7 @@ class ProcessTomograph:
                                           states_init=states_init, cptp=cptp)
 
         dist = np.empty(n_points)
-        boot_tmg = self.__class__(channel, self.input_states, self.dst, self.input_impurity)
+        boot_tmg = self.__class__(channel, self.input_states, self.dst)
         for i in range(n_points):
             boot_tmg.experiment(self.tomographs[0].n_measurements,
                                 POVM=self.tomographs[0].POVM_matrix)
@@ -541,8 +534,8 @@ class ProcessTomograph:
             grad = -self._lifp_oper.T.conj() @ (self._unnorm_results / probas)
             D = self._cptp_projection_vec(choi_vec - grad / mu) - choi_vec
             alpha = 1
-            while self._nll(choi_vec + alpha * D) - self._nll(choi_vec) > gamma * alpha * np.dot(D,
-                                                                                                 grad):
+            while (self._nll(choi_vec + alpha * D) - self._nll(choi_vec)
+                   > gamma * alpha * np.dot(D, grad)):
                 alpha /= 2
             new_choi_vec = choi_vec + alpha * D
             if self._nll(choi_vec) - self._nll(new_choi_vec) > tol:
@@ -572,7 +565,7 @@ class ProcessTomograph:
         return self.reconstructed_channel
 
 
-def _generate_input_states(type, input_impurity, n_qubits):
+def _generate_input_states(type, n_qubits):
     """Generate input states to use in quantum process tomography"""
     if isinstance(type, list):
         return type
