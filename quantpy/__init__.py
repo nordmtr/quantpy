@@ -19,3 +19,8 @@ from .base_quantum import BaseQuantum
 from .operator import Operator
 from .tomography.state import StateTomograph
 from .tomography.process import ProcessTomograph
+from .tomography.interval import (
+    GammaInterval, SugiyamaInterval, WangInterval, HolderInterval,
+    BootstrapStateInterval, BootstrapProcessInterval,
+    MHMCStateInterval, MHMCProcessInterval,
+)
