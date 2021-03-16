@@ -68,23 +68,3 @@ def product(A, B):
     if not isinstance(B, np.ndarray):
         B = B.matrix
     return np.trace(A @ np.conj(B.T), dtype=np.complex128)
-
-
-def compute_polytope_volume(polytope):
-    """Compute the volume of the polytope approximately
-
-    Parameters
-    ----------
-    polytope : polytope.Polytope
-    """
-    dim = polytope.A.shape[1]
-    n_points = int(5000 * 1.5 ** dim)
-    l_b, u_b = polytope.bounding_box
-    x = (np.tile(l_b, (1, n_points))
-         + np.random.rand(dim, n_points)
-         * np.tile(u_b - l_b, (1, n_points)))
-    aux = (np.dot(polytope.A, x)
-           - np.tile(np.array([polytope.b]).T, (1, n_points)))
-    aux = np.nonzero(np.all(aux < 0, 0))[0].shape[0]
-    vol = np.prod(u_b - l_b) * aux / n_points
-    return vol

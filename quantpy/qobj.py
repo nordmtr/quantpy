@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 import scipy.linalg as la
+import math
 
 from copy import deepcopy
 
@@ -86,10 +87,16 @@ class Qobj(BaseQuantum):
                 data = _density(data)
             data = np.array(data)
             if len(data.shape) == 1:
+                n_qubits_float = math.log2(data.shape[0]) / 2
+                self.n_qubits = math.ceil(n_qubits_float)
+                dim = 2 ** self.n_qubits
+                if n_qubits_float.is_integer():
+                    self._bloch = data
+                else:
+                    self._bloch = np.ones((dim ** 2,)) / dim
+                    self._bloch[1:] = data
                 self._matrix = None
-                self._bloch = data
                 self._types.add('bloch')
-                self.n_qubits = int(np.log2(data.shape[0]) / 2)
             elif len(data.shape) == 2:
                 self._matrix = data
                 self._bloch = None
@@ -107,7 +114,6 @@ class Qobj(BaseQuantum):
             self._matrix = np.zeros((2 ** self.n_qubits, 2 ** self.n_qubits), dtype=np.complex128)
             for i in range(4 ** self.n_qubits):
                 self._matrix += basis[i] * self._bloch[i]
-            # self._matrix /= (2 ** self.n_qubits)
         return self._matrix
 
     @matrix.setter
@@ -135,7 +141,7 @@ class Qobj(BaseQuantum):
         self._types.discard('matrix')
         self._bloch = np.array(data)
 
-    def ptrace(self, keep=[0]):
+    def ptrace(self, keep=(0,)):
         """Partial trace of the quantum object
 
         Parameters
@@ -151,7 +157,8 @@ class Qobj(BaseQuantum):
         keep = np.array(keep)
 
         bra_idx = list(range(self.n_qubits))
-        ket_idx = [self.n_qubits + i if i in keep else i for i in range(self.n_qubits)]  # preserve indices in `keep`
+        # preserve indices in `keep`
+        ket_idx = [self.n_qubits + i if i in keep else i for i in range(self.n_qubits)]
         rho = self.matrix.reshape([2] * (2 * self.n_qubits))
         rho = np.einsum(rho, bra_idx + ket_idx)  # sum over the preferred indices
         return Qobj(rho.reshape(2 ** len(keep), 2 ** len(keep)))
