@@ -64,8 +64,8 @@ def _mat2vec(matrix):
 
 def _density(psi):
     """Construct a density matrix of a pure state"""
-    return (np.asarray(psi, dtype=np.complex128).T
-            @ np.conj(np.asarray(psi, dtype=np.complex128)))
+    return np.outer(np.asarray(psi, dtype=np.complex128).T,
+                    np.conj(np.asarray(psi, dtype=np.complex128)))
 
 
 def _left_inv(A):
