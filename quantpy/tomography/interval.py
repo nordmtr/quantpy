@@ -6,6 +6,7 @@ import pypoman
 
 from enum import Enum, auto
 from abc import ABC, abstractmethod
+from scipy.interpolate import interp1d
 
 from ..geometry import hs_dst, trace_dst
 from ..polytope import compute_polytope_volume, find_max_distance_to_polytope
@@ -23,6 +24,12 @@ class ConfidenceInterval(ABC):
     """Functor for obtaining confidence intervals."""
 
     def __init__(self, tmg, *args, **kwargs):
+        """
+        Parameters
+        ----------
+        tmg : StateTomograph or ProcessTomograph
+            Object with tomography results
+        """
         self.tmg = tmg
         if hasattr(tmg, 'state'):
             self.mode = Mode.STATE
@@ -49,13 +56,17 @@ class ConfidenceInterval(ABC):
 
 # noinspection PyProtectedMember
 class GammaInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000):
+    def __init__(self, tmg, n_points=1000, max_confidence=0.999):
         """Use gamma distribution approximation to obtain confidence interval.
 
         Parameters
         ----------
+        tmg : StateTomograph or ProcessTomograph
+            Object with tomography results
         n_points : int
             Number of distances to get.
+        max_confidence : float
+            Maximum confidence level
         """
         kwargs = locals()
         for key in ('self', 'tmg'):
@@ -84,7 +95,7 @@ class GammaInterval(ConfidenceInterval):
         shape = mean / scale
         gamma = sts.gamma(a=shape, scale=scale)
         # noinspection PyUnresolvedReferences
-        CLs = np.linspace(0.001, 0.999, self.n_points)
+        CLs = np.linspace(0.001, self.max_confidence, self.n_points)
         if self.mode == Mode.STATE:
             dim = 2 ** self.tmg.state.n_qubits
             if self.tmg.dst == hs_dst:
@@ -111,17 +122,18 @@ class GammaInterval(ConfidenceInterval):
 
 
 class SugiyamaInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, dist=None):
+    def __init__(self, tmg, n_points=1000, max_confidence=0.999):
         """Construct a confidence interval based on Hoeffding inequality as in work 1306.4191 of
         Sugiyama et al.
 
         Parameters
         ----------
+        tmg : StateTomograph
+            Object with tomography results
         n_points : int
             Number of distances to get.
-        dist : array-like
-            Sorted list of distances between the reconstructed state and secondary samples
-            where to calculate confidence levels.
+        max_confidence : float
+            Maximum confidence level
         """
         kwargs = locals()
         for key in ('self', 'tmg'):
@@ -132,8 +144,7 @@ class SugiyamaInterval(ConfidenceInterval):
         if self.mode == Mode.CHANNEL:
             raise NotImplementedError("Sugiyama interval works only for state tomography")
         EPS = 1e-15
-        if self.dist is None:
-            self.dist = np.linspace(0, 1, self.n_points)
+        dist_dummy = np.linspace(0, 1, 100000)
         povm_matrix = (np.reshape(self.tmg.povm_matrix, (-1, self.tmg.povm_matrix.shape[-1]))
                        * 2 ** self.tmg.state.n_qubits)
         inversed_povm = _left_inv(povm_matrix).reshape(
@@ -142,24 +153,30 @@ class SugiyamaInterval(ConfidenceInterval):
         c_alpha = np.sum((np.max(inversed_povm, axis=-1) - np.min(inversed_povm, axis=-1)) ** 2
                          * measurement_ratios[None, :], axis=-1) + EPS
         b = 4 / povm_matrix.shape[1]
-        CLs = 1 - 2 * np.sum(
-            np.exp(-b * self.dist[:, None] ** 2
-                   * np.sum(self.tmg.n_measurements) / c_alpha[None, :]),
-            axis=1)
-        return self.dist, CLs
+        CLs_dummy = 1 - 2 * np.sum(
+            np.exp(-b * dist_dummy[:, None] ** 2
+                   * np.sum(self.tmg.n_measurements) / c_alpha[None, :]), axis=1)
+        cl_to_dist = interp1d(CLs_dummy, dist_dummy)
+        CLs = np.linspace(0, self.max_confidence, self.n_points)
+        dist = cl_to_dist(CLs)
+        return dist, CLs
 
 
 class WangInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, method='bbox'):
+    def __init__(self, tmg, n_points=1000, method='bbox', max_confidence=0.999):
         """Construct a confidence interval based on Clopper-Pearson interval as in work
         1808.09988 of Wang et al.
 
         Parameters
         ----------
+        tmg : StateTomograph
+            Object with tomography results
         n_points : int
             Number of distances to get.
         method : str
             Method of calculating the radius of the circumscribed sphere.
+        max_confidence : float
+            Maximum confidence level
         """
         kwargs = locals()
         for key in ('self', 'tmg'):
@@ -188,11 +205,12 @@ class WangInterval(ConfidenceInterval):
                      * (self.tmg.povm_matrix.shape[1] - 1)
                      * np.sqrt(prob_dim))
             coef2 = np.linalg.norm(A, ord=2) ** 2 * prob_dim
-            dist = np.linspace(0, 1, self.n_points)
-            deltas = np.maximum(dist / coef1, dist ** 2 / coef2)
+            dist_dummy = np.linspace(0, 1, self.n_points)
+            deltas = np.maximum(dist_dummy / coef1, dist_dummy ** 2 / coef2)
         else:
-            deltas = np.linspace(0, 0.2, self.n_points)
-            dist = []
+            max_delta = self._count_delta(self.max_confidence, frequencies)
+            deltas = np.linspace(0, max_delta, self.n_points)
+            dist_dummy = []
             A = np.ascontiguousarray(povm_matrix[:, 1:])
             for delta in deltas:
                 b = np.clip(np.hstack(frequencies) + delta, EPS, 1 - EPS) - povm_matrix[:, 0] / dim
@@ -218,33 +236,49 @@ class WangInterval(ConfidenceInterval):
                     radius = find_max_distance_to_polytope(A, b, rho_bloch, rho_bloch)
                 else:
                     raise ValueError("Invalid value for argument `mode`.")
-                dist.append(radius)
+                dist_dummy.append(radius)
 
-        CLs = []
+        CLs_dummy = []
         for delta in deltas:
-            freq_plus_delta = np.clip(frequencies + delta, EPS, 1 - EPS)
-            KL_divergence = (frequencies * np.log(frequencies / freq_plus_delta)
-                             + (1 - frequencies) * np.log(
-                        (1 - frequencies) / (1 - freq_plus_delta)))
-            KL_divergence = np.where(freq_plus_delta < 1 - EPS, KL_divergence, np.inf)
-            epsilons = np.exp(-self.tmg.n_measurements[:, None] * KL_divergence)
-            epsilons = np.where(np.abs(frequencies - 1) < 2 * EPS, 0, epsilons)
+            CLs_dummy.append(self._count_confidence(delta, frequencies))
+        cl_to_dist = interp1d(CLs_dummy, dist_dummy)
+        CLs = np.linspace(0, self.max_confidence, self.n_points)
+        dist = cl_to_dist(CLs)
+        return dist, CLs
 
-            CLs.append(1 - np.sum(epsilons))
-        return np.asarray(dist), np.asarray(CLs)
+    def _count_confidence(self, delta, frequencies):
+        EPS = 1e-15
+        freq_plus_delta = np.clip(frequencies + delta, EPS, 1 - EPS)
+        KL_divergence = (frequencies * np.log(frequencies / freq_plus_delta)
+                         + (1 - frequencies) * np.log(
+                    (1 - frequencies) / (1 - freq_plus_delta)))
+        KL_divergence = np.where(freq_plus_delta < 1 - EPS, KL_divergence, np.inf)
+        epsilons = np.exp(-self.tmg.n_measurements[:, None] * KL_divergence)
+        epsilons = np.where(np.abs(frequencies - 1) < 2 * EPS, 0, epsilons)
+        return 1 - np.sum(epsilons)
+
+    def _count_delta(self, confidence_threshold, frequencies):
+        delta = 1e-10
+        while True:
+            confidence = self._count_confidence(delta, frequencies)
+            if confidence > confidence_threshold:
+                return delta
+            delta *= 2
 
 
 # noinspection PyProtectedMember,PyProtectedMember
 class HolderInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, kind='gamma', method='lin', method_boot='lin',
-                 physical=True, init='lin', tol=1e-3, max_iter=100, step=0.01,
-                 burn_steps=1000, thinning=1, wang_method='bbox'):
+    def __init__(self, tmg, n_points=1000, kind='gamma', max_confidence=0.999,
+                 method='lin', method_boot='lin', physical=True, init='lin', tol=1e-3,
+                 max_iter=100, step=0.01, burn_steps=1000, thinning=1, wang_method='bbox'):
         """Conducts `n_points` experiments, constructs confidence intervals for each,
         computes confidence level that corresponds to the distance between
         the target state and the point estimate and returns a sorted list of these levels.
 
         Parameters
         ----------
+        tmg : ProcessTomograph
+            Object with tomography results
         n_points : int
             Number of distances to get.
         kind : str
@@ -256,6 +290,8 @@ class HolderInterval(ConfidenceInterval):
                 'mhmc' -- Metropolis-Hastings Monte Carlo
                 'sugiyama' -- 1306.4191 interval
                 'wang' -- 1808.09988 interval
+        max_confidence : float
+            Maximum confidence level for 'gamma', 'wang' and 'sugiyama' methods.
         method : str
             Method of reconstructing the density matrix of bootstrap samples
 
@@ -308,7 +344,7 @@ class HolderInterval(ConfidenceInterval):
         if self.mode == Mode.STATE:
             raise NotImplementedError("Holder interval works only for process tomography")
         if self.kind == 'gamma':
-            state_results = [GammaInterval(tmg, self.n_points)()
+            state_results = [GammaInterval(tmg, self.n_points, self.max_confidence)()
                              for tmg in self.tmg.tomographs]
         elif self.kind == 'mhmc':
             state_results = [
@@ -322,11 +358,13 @@ class HolderInterval(ConfidenceInterval):
                 for tmg in self.tmg.tomographs
             ]
         elif self.kind == 'sugiyama':
-            state_results = [SugiyamaInterval(tmg, self.n_points)()
+            state_results = [SugiyamaInterval(tmg, self.n_points, self.max_confidence)()
                              for tmg in self.tmg.tomographs]
         elif self.kind == 'wang':
-            state_results = [WangInterval(tmg, self.n_points, self.wang_method)()
-                             for tmg in self.tmg.tomographs]
+            state_results = [
+                WangInterval(tmg, self.n_points, self.wang_method, self.max_confidence)()
+                for tmg in self.tmg.tomographs
+            ]
         else:
             raise ValueError('Incorrect value for argument `kind`.')
 
@@ -351,6 +389,8 @@ class BootstrapStateInterval(ConfidenceInterval):
 
         Parameters
         ----------
+        tmg : StateTomograph
+            Object with tomography results
         n_points : int
             Number of experiments to perform
         method : str, default='lin'
@@ -416,6 +456,8 @@ class BootstrapProcessInterval(ConfidenceInterval):
 
         Parameters
         ----------
+        tmg : ProcessTomograph
+            Object with tomography results
         n_points : int
             Number of experiments to perform
         method : str, default='lifp'
@@ -484,6 +526,8 @@ class MHMCStateInterval(ConfidenceInterval):
 
         Parameters
         ----------
+        tmg : StateTomograph
+            Object with tomography results
         n_points : int
             Number of samples to be produced by MCMC.
         step : float
@@ -547,6 +591,8 @@ class MHMCProcessInterval(ConfidenceInterval):
 
         Parameters
         ----------
+        tmg : ProcessTomograph
+            Object with tomography results
         n_points : int
             Number of samples to be produced by MCMC.
         step : float
