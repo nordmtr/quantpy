@@ -206,6 +206,8 @@ class WangInterval(ConfidenceInterval):
                                   (-1, self.tmg.povm_matrix.shape[-1]))
                        * dim * self.tmg.povm_matrix.shape[0])
 
+        max_delta = self._count_delta(self.max_confidence, frequencies)
+
         if self.method == 'coarse':
             A = _left_inv(povm_matrix)
             prob_dim = povm_matrix.shape[0]
@@ -213,10 +215,10 @@ class WangInterval(ConfidenceInterval):
                      * (self.tmg.povm_matrix.shape[1] - 1)
                      * np.sqrt(prob_dim))
             coef2 = np.linalg.norm(A, ord=2) ** 2 * prob_dim
-            dist_dummy = np.linspace(0, 1, self.n_points)
+            max_dist = max(max_delta * coef1, np.sqrt(max_delta * coef2))
+            dist_dummy = np.linspace(0, max_dist, self.n_points)
             deltas = np.maximum(dist_dummy / coef1, dist_dummy ** 2 / coef2)
         else:
-            max_delta = self._count_delta(self.max_confidence, frequencies)
             deltas = np.linspace(0, max_delta, self.n_points)
             dist_dummy = []
             A = np.ascontiguousarray(povm_matrix[:, 1:])
