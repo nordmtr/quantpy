@@ -8,7 +8,7 @@ from enum import Enum, auto
 from abc import ABC, abstractmethod
 from scipy.interpolate import interp1d
 
-from ..geometry import hs_dst, trace_dst
+from ..geometry import hs_dst, trace_dst, if_dst
 from ..polytope import compute_polytope_volume, find_max_distance_to_polytope
 from ..qobj import Qobj
 from ..routines import (
@@ -144,15 +144,23 @@ class SugiyamaInterval(ConfidenceInterval):
         if self.mode == Mode.CHANNEL:
             raise NotImplementedError("Sugiyama interval works only for state tomography")
         EPS = 1e-15
+        dim = 2 ** self.tmg.state.n_qubits
         dist_dummy = np.linspace(0, 1, 100000)
-        povm_matrix = (np.reshape(self.tmg.povm_matrix, (-1, self.tmg.povm_matrix.shape[-1]))
-                       * 2 ** self.tmg.state.n_qubits)
+        povm_matrix = np.reshape(self.tmg.povm_matrix, (-1, self.tmg.povm_matrix.shape[-1])) * dim
+        povm_matrix /= np.sqrt(2 * dim)
         inversed_povm = _left_inv(povm_matrix).reshape(
             (-1, self.tmg.povm_matrix.shape[0], self.tmg.povm_matrix.shape[1]))
         measurement_ratios = self.tmg.n_measurements.sum() / self.tmg.n_measurements
         c_alpha = np.sum((np.max(inversed_povm, axis=-1) - np.min(inversed_povm, axis=-1)) ** 2
                          * measurement_ratios[None, :], axis=-1) + EPS
-        b = 4 / povm_matrix.shape[1]
+        if self.tmg.dst == hs_dst:
+            b = 8 / (dim ** 2 - 1)
+        elif self.tmg.dst == trace_dst:
+            b = 16 / (dim ** 2 - 1) / dim
+        elif self.tmg.dst == if_dst:
+            b = 4 / (dim ** 2 - 1) / dim
+        else:
+            raise NotImplementedError("Unsupported distance")
         CLs_dummy = 1 - 2 * np.sum(
             np.exp(-b * dist_dummy[:, None] ** 2
                    * np.sum(self.tmg.n_measurements) / c_alpha[None, :]), axis=1)
@@ -380,7 +388,7 @@ class HolderInterval(ConfidenceInterval):
 
 class BootstrapStateInterval(ConfidenceInterval):
     def __init__(self, tmg, n_points=1000, method='lin', physical=True,
-                 init='lin', tol=1e-3, max_iter=100, use_new_estimate=False, state=None):
+                 init='lin', tol=1e-3, max_iter=100, state=None):
         """Perform multiple tomography simulation on the preferred state with the same
         measurements number
         and POVM matrix, as in the preceding experiment. Count the distances to the
@@ -404,18 +412,9 @@ class BootstrapStateInterval(ConfidenceInterval):
             Number of iterations in MLE method
         tol : float, default=1e-3 (optional)
             Error tolerance in MLE method
-        use_new_estimate : bool, default=False
-            If False, uses the latest reconstructed state as a state to perform new
-            tomographies on.
-            If True and `state` is None, reconstruct a density matrix from the data
-            obtained in
-            previous experiment
-            ans use it to perform new tomographies on.
-            If True and `state` is not None, use `state` as a state to perform new
-            tomographies on.
         state : Qobj or None, default=None
-            If not None and `use_new_estimate` is True, use it as a state to perform new
-            tomographies on
+            If not None, use it as a state to perform new tomographies on.
+            Otherwise use the reconstructed state from tmg.
         """
         kwargs = locals()
         for key in ('self', 'tmg'):
@@ -425,12 +424,13 @@ class BootstrapStateInterval(ConfidenceInterval):
     def __call__(self):
         if self.mode == Mode.CHANNEL:
             raise NotImplementedError("This interval works only for state tomography")
-        if not self.use_new_estimate:
-            self.state = self.tmg.reconstructed_state
-        elif self.state is None:
-            self.state = self.tmg.point_estimate(method=self.method, physical=self.physical,
-                                                 init=self.init, tol=self.tol,
-                                                 max_iter=self.max_iter)
+        if self.state is None:
+            if hasattr(self.tmg, 'reconstructed_state'):
+                self.state = self.tmg.reconstructed_state
+            else:
+                self.state = self.tmg.point_estimate(method=self.method, physical=self.physical,
+                                                     init=self.init, tol=self.tol,
+                                                     max_iter=self.max_iter)
 
         dist = np.empty(self.n_points)
         boot_tmg = self.tmg.__class__(self.state, self.tmg.dst)
@@ -445,8 +445,7 @@ class BootstrapStateInterval(ConfidenceInterval):
 
 
 class BootstrapProcessInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, method='lifp', cptp=True,
-                 tol=1e-10, use_new_estimate=False, channel=None,
+    def __init__(self, tmg, n_points=1000, method='lifp', cptp=True, tol=1e-10, channel=None,
                  states_est_method='lin', states_physical=True, states_init='lin'):
         """Perform multiple tomography simulation on the preferred channel with the same
         measurements number
@@ -470,18 +469,9 @@ class BootstrapProcessInterval(ConfidenceInterval):
             See :ref:`point_estimate` for detailed documentation
         states_init : str, default='lin' (optional)
             See :ref:`point_estimate` for detailed documentation
-        use_new_estimate : bool, default=False
-            If False, uses the latest reconstructed channel as a channel to perform new
-            tomographies on.
-            If True and `channel` is None, reconstruct a density matrix from the data
-            obtained in
-            previous experiment
-            ans use it to perform new tomographies on.
-            If True and `channel` is not None, use `channel` as a channel to perform new
-            tomographies on.
-        channel : Qobj or None, default=None
-            If not None and `use_new_estimate` is True, use it as a channel to perform new
-            tomographies on
+        channel : Channel or None, default=None
+            If not None, use it as a channel to perform new tomographies on.
+            Otherwise use the reconstructed channel from tmg.
         cptp : bool, default=True
             If True, all bootstrap samples are projected onto CPTP space
         """
@@ -493,13 +483,14 @@ class BootstrapProcessInterval(ConfidenceInterval):
     def __call__(self):
         if self.mode == Mode.STATE:
             raise NotImplementedError("This interval works only for process tomography")
-        if not self.use_new_estimate:
-            self.channel = self.tmg.reconstructed_channel
-        elif self.channel is None:
-            self.channel = self.tmg.point_estimate(
-                method=self.method, states_physical=self.states_physical,
-                states_init=self.states_init, cptp=self.cptp
-            )
+        if self.channel is None:
+            if hasattr(self.tmg, 'reconstructed_channel'):
+                self.channel = self.tmg.reconstructed_channel
+            else:
+                self.channel = self.tmg.point_estimate(
+                    method=self.method, states_physical=self.states_physical,
+                    states_init=self.states_init, cptp=self.cptp
+                )
 
         dist = np.empty(self.n_points)
         boot_tmg = self.tmg.__class__(self.channel, self.tmg.input_states, self.tmg.dst)
