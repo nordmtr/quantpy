@@ -2,5 +2,6 @@
 .idea
 *egg-info
 /imgs
+/results
 /notebooks
 /data

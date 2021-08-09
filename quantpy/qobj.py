@@ -94,7 +94,7 @@ class Qobj(BaseQuantum):
                 if n_qubits_float.is_integer():
                     self._bloch = data
                 else:
-                    self._bloch = np.ones((dim ** 2,)) / dim
+                    self._bloch = np.ones(dim ** 2) / dim
                     self._bloch[1:] = data
                 self._matrix = None
                 self._types.add('bloch')
