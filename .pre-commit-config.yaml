@@ -1,0 +1,40 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+        - id: check-byte-order-marker  # Forbid UTF-8 byte-order markers
+        - id: check-case-conflict
+        - id: check-json
+        - id: check-yaml
+        - id: end-of-file-fixer
+        - id: trailing-whitespace
+        - id: mixed-line-ending
+-   repo: local
+    hooks:
+    -   id: isort
+        name: isort
+        entry: isort
+        language: system
+        pass_filenames: false
+    -   id: black
+        name: black
+        entry: black
+        language: system
+        pass_filenames: false
+    -   id: autoflake
+        name: autoflake
+        entry: autoflake
+        language: system
+        types: [ python ]
+        args: [ --in-place, --remove-all-unused-imports, --remove-duplicate-keys ]
+        files: ^quantpy/
+    -   id: flake8
+        name: flake8
+        entry: flake8
+        language: python
+        pass_filenames: false
+#    -   id: mypy
+#        name: mypy
+#        entry: mypy --no-site-packages
+#        language: system
+#        pass_filenames: false
