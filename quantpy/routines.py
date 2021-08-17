@@ -48,7 +48,8 @@ def _out_ptrace_oper(n_qubits):
     """Construct a partial trace operator over output space for a bipartite system"""
     identity = np.eye(2 ** n_qubits)
     return np.sum(
-        [np.kron(identity, np.kron(k_vec, np.kron(identity, k_vec))) for k_vec in identity], axis=0)
+        [np.kron(identity, np.kron(k_vec, np.kron(identity, k_vec))) for k_vec in identity], axis=0
+    )
 
 
 def _vec2mat(vector):
@@ -64,8 +65,9 @@ def _mat2vec(matrix):
 
 def _density(psi):
     """Construct a density matrix of a pure state"""
-    return np.outer(np.asarray(psi, dtype=np.complex128).T,
-                    np.conj(np.asarray(psi, dtype=np.complex128)))
+    return np.outer(
+        np.asarray(psi, dtype=np.complex128).T, np.conj(np.asarray(psi, dtype=np.complex128))
+    )
 
 
 def _left_inv(A):
@@ -75,7 +77,7 @@ def _left_inv(A):
 
 def _real_to_complex(z):
     """Real vector of length 2n -> complex of length n"""
-    return z[:len(z) // 2] + 1j * z[len(z) // 2:]
+    return z[: len(z) // 2] + 1j * z[len(z) // 2 :]
 
 
 def _complex_to_real(z):

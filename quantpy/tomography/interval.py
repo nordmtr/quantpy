@@ -1,27 +1,32 @@
-import numpy as np
-import scipy.stats as sts
-import polytope as pc
 import math
-import pypoman
-
-from enum import Enum, auto
 from abc import ABC, abstractmethod
+from enum import Enum, auto
+
+import numpy as np
+import pypoman
+import scipy.stats as sts
 from scipy.interpolate import interp1d
 
-from ..geometry import hs_dst, trace_dst, if_dst
+import polytope as pc
+
+from ..geometry import hs_dst, if_dst, trace_dst
+from ..mhmc import MHMC, normalized_update
 from ..polytope import compute_polytope_volume, find_max_distance_to_polytope
 from ..qobj import Qobj
 from ..routines import (
-    _left_inv, _vec2mat, _mat2vec,
-    _matrix_to_real_tril_vec, _real_tril_vec_to_matrix,
+    _left_inv,
+    _mat2vec,
+    _matrix_to_real_tril_vec,
+    _real_tril_vec_to_matrix,
+    _vec2mat,
 )
 from ..stats import l2_mean, l2_variance
-from ..mhmc import MHMC, normalized_update
 from .state import _make_feasible
 
 
 class ConfidenceInterval(ABC):
     """Functor for obtaining confidence intervals."""
+
     EPS = 1e-15
 
     def __init__(self, tmg, **kwargs):
@@ -32,9 +37,9 @@ class ConfidenceInterval(ABC):
             Object with tomography results
         """
         self.tmg = tmg
-        if hasattr(tmg, 'state'):
+        if hasattr(tmg, "state"):
             self.mode = Mode.STATE
-        elif hasattr(tmg, 'channel'):
+        elif hasattr(tmg, "channel"):
             self.mode = Mode.CHANNEL
         else:
             raise ValueError()
@@ -50,8 +55,8 @@ class ConfidenceInterval(ABC):
             List of confidence levels.
         """
         if conf_levels is None:
-            conf_levels = np.linspace(1e-3, 1-1e-3, 1000)
-        if not hasattr(self, 'cl_to_dist'):
+            conf_levels = np.linspace(1e-3, 1 - 1e-3, 1000)
+        if not hasattr(self, "cl_to_dist"):
             self.setup()
         return self.cl_to_dist(conf_levels), conf_levels
 
@@ -62,7 +67,7 @@ class ConfidenceInterval(ABC):
 
 
 class MomentInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, max_confidence=0.999, distr_type='gamma'):
+    def __init__(self, tmg, n_points=1000, max_confidence=0.999, distr_type="gamma"):
         """Use moments to obtain confidence interval.
 
         Parameters
@@ -83,19 +88,20 @@ class MomentInterval(ConfidenceInterval):
             measurement_ratios = long_n_measurements / long_n_measurements.sum()
             frequencies = self.tmg.raw_results / self.tmg.n_measurements[:, None]
         else:
-            if not hasattr(self, '_lifp_oper_inv'):
-                _ = self.tmg.point_estimate('lifp')
+            if not hasattr(self, "_lifp_oper_inv"):
+                _ = self.tmg.point_estimate("lifp")
             n_measurements = np.hstack([tmg.n_measurements for tmg in self.tmg.tomographs])
             long_n_measurements = n_measurements.astype(object)
-            measurement_ratios = long_n_measurements / long_n_measurements.sum() * len(
-                self.tmg.tomographs)
+            measurement_ratios = (
+                long_n_measurements / long_n_measurements.sum() * len(self.tmg.tomographs)
+            )
             raw_results = np.vstack([tmg.raw_results for tmg in self.tmg.tomographs])
             frequencies = raw_results / n_measurements[:, None]
         means = l2_mean(frequencies, long_n_measurements)
         mean = np.sum(means * measurement_ratios ** 2)
         variances = l2_variance(frequencies, long_n_measurements)
         variance = np.sum(variances * measurement_ratios ** 4)
-        if self.distr_type == 'norm':
+        if self.distr_type == "norm":
             std = np.sqrt(variance)
             a = -mean / std
             b = (1 - mean) / std
@@ -105,7 +111,7 @@ class MomentInterval(ConfidenceInterval):
             new_std = std / np.sqrt(1 + a * pdf_a / z - (pdf_a / z) ** 2)
             new_mean = mean - new_std * pdf_a / z
             distr = sts.truncnorm(loc=new_mean, scale=new_std, a=a, b=b)
-        elif self.distr_type == 'gamma':
+        elif self.distr_type == "gamma":
             scale = variance / mean
             shape = mean / scale
             distr = sts.gamma(a=shape, scale=scale)
@@ -120,9 +126,12 @@ class MomentInterval(ConfidenceInterval):
                 alpha = dim / 2
             else:
                 raise NotImplementedError()
-            povm_matrix = np.reshape(self.tmg.povm_matrix * self.tmg.n_measurements[:, None, None]
-                                     / np.sum(self.tmg.n_measurements),
-                                     (-1, self.tmg.povm_matrix.shape[-1]))
+            povm_matrix = np.reshape(
+                self.tmg.povm_matrix
+                * self.tmg.n_measurements[:, None, None]
+                / np.sum(self.tmg.n_measurements),
+                (-1, self.tmg.povm_matrix.shape[-1]),
+            )
             A = _left_inv(povm_matrix) / dim
             dist = np.sqrt(distr.ppf(conf_levels)) * alpha * np.linalg.norm(A, ord=2)
         else:
@@ -133,8 +142,11 @@ class MomentInterval(ConfidenceInterval):
                 alpha = dim / 2
             else:
                 raise NotImplementedError()
-            dist = np.sqrt(distr.ppf(conf_levels)) * alpha \
-                   * np.linalg.norm(self.tmg._lifp_oper_inv, ord=2)
+            dist = (
+                np.sqrt(distr.ppf(conf_levels))
+                * alpha
+                * np.linalg.norm(self.tmg._lifp_oper_inv, ord=2)
+            )
         self.cl_to_dist = interp1d(conf_levels, dist)
 
 
@@ -163,10 +175,17 @@ class SugiyamaInterval(ConfidenceInterval):
         povm_matrix = np.reshape(self.tmg.povm_matrix, (-1, self.tmg.povm_matrix.shape[-1])) * dim
         povm_matrix /= np.sqrt(2 * dim)
         inversed_povm = _left_inv(povm_matrix).reshape(
-            (-1, self.tmg.povm_matrix.shape[0], self.tmg.povm_matrix.shape[1]))
+            (-1, self.tmg.povm_matrix.shape[0], self.tmg.povm_matrix.shape[1])
+        )
         measurement_ratios = self.tmg.n_measurements.sum() / self.tmg.n_measurements
-        c_alpha = np.sum((np.max(inversed_povm, axis=-1) - np.min(inversed_povm, axis=-1)) ** 2
-                         * measurement_ratios[None, :], axis=-1) + self.EPS
+        c_alpha = (
+            np.sum(
+                (np.max(inversed_povm, axis=-1) - np.min(inversed_povm, axis=-1)) ** 2
+                * measurement_ratios[None, :],
+                axis=-1,
+            )
+            + self.EPS
+        )
         if self.tmg.dst == hs_dst:
             b = 8 / (dim ** 2 - 1)
         elif self.tmg.dst == trace_dst:
@@ -175,13 +194,15 @@ class SugiyamaInterval(ConfidenceInterval):
             b = 4 / (dim ** 2 - 1) / dim
         else:
             raise NotImplementedError("Unsupported distance")
-        conf_levels = 1 - 2 * np.sum(np.exp(-b * dist[:, None] ** 2
-                                     * np.sum(self.tmg.n_measurements) / c_alpha[None, :]), axis=1)
+        conf_levels = 1 - 2 * np.sum(
+            np.exp(-b * dist[:, None] ** 2 * np.sum(self.tmg.n_measurements) / c_alpha[None, :]),
+            axis=1,
+        )
         self.cl_to_dist = interp1d(conf_levels, dist)
 
 
 class WangInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, method='bbox', max_confidence=0.999):
+    def __init__(self, tmg, n_points=1000, method="bbox", max_confidence=0.999):
         """Construct a confidence interval based on Clopper-Pearson interval as in work
         1808.09988 of Wang et al.
 
@@ -202,26 +223,34 @@ class WangInterval(ConfidenceInterval):
     def setup(self):
         if self.mode == Mode.CHANNEL:
             raise NotImplementedError("This interval works only for state tomography")
-        rho = self.tmg.point_estimate('lin', physical=False)
+        rho = self.tmg.point_estimate("lin", physical=False)
         dim = 2 ** self.tmg.state.n_qubits
         bloch_dim = dim ** 2 - 1
 
-        frequencies = np.clip(self.tmg.raw_results / self.tmg.n_measurements[:, None],
-                              self.EPS, 1 - self.EPS)
+        frequencies = np.clip(
+            self.tmg.raw_results / self.tmg.n_measurements[:, None], self.EPS, 1 - self.EPS
+        )
 
-        povm_matrix = (np.reshape(self.tmg.povm_matrix * self.tmg.n_measurements[:, None, None]
-                                  / np.sum(self.tmg.n_measurements),
-                                  (-1, self.tmg.povm_matrix.shape[-1]))
-                       * self.tmg.povm_matrix.shape[0])
+        povm_matrix = (
+            np.reshape(
+                self.tmg.povm_matrix
+                * self.tmg.n_measurements[:, None, None]
+                / np.sum(self.tmg.n_measurements),
+                (-1, self.tmg.povm_matrix.shape[-1]),
+            )
+            * self.tmg.povm_matrix.shape[0]
+        )
         A = np.ascontiguousarray(povm_matrix[:, 1:]) * dim
         max_delta = self._count_delta(self.max_confidence, frequencies)
 
-        if self.method == 'coarse':
+        if self.method == "coarse":
             A_inv = _left_inv(A)
             prob_dim = povm_matrix.shape[0]
-            coef1 = (np.linalg.norm(A_inv, ord=2)
-                     * (self.tmg.povm_matrix.shape[1] - 1)
-                     * np.sqrt(prob_dim))
+            coef1 = (
+                np.linalg.norm(A_inv, ord=2)
+                * (self.tmg.povm_matrix.shape[1] - 1)
+                * np.sqrt(prob_dim)
+            )
             coef2 = np.linalg.norm(A_inv, ord=2) ** 2 * prob_dim
             max_dist = max(max_delta * coef1, np.sqrt(max_delta * coef2))
             dist = np.linspace(0, max_dist, self.n_points)
@@ -230,26 +259,31 @@ class WangInterval(ConfidenceInterval):
             deltas = np.linspace(0, max_delta, self.n_points)
             dist = []
             for delta in deltas:
-                b = np.clip(np.hstack(frequencies) + delta,
-                            self.EPS, 1 - self.EPS) - povm_matrix[:, 0]
-                if self.method == 'exact':
+                b = (
+                    np.clip(np.hstack(frequencies) + delta, self.EPS, 1 - self.EPS)
+                    - povm_matrix[:, 0]
+                )
+                if self.method == "exact":
                     vertices = pypoman.compute_polytope_vertices(A, b)
                     vertex_states = [_make_feasible(Qobj(vertex)) for vertex in vertices]
                     if vertices:
-                        radius = max([self.tmg.dst(vertex_state, rho) for vertex_state in
-                                      vertex_states])
+                        radius = max(
+                            [self.tmg.dst(vertex_state, rho) for vertex_state in vertex_states]
+                        )
                     else:
                         radius = 0
-                elif self.method == 'bbox':
+                elif self.method == "bbox":
                     lb, ub = pc.Polytope(A, b).bounding_box
                     volume = np.prod(ub - lb)
-                    radius = ((volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim)
-                              / math.sqrt(math.pi))
-                elif self.method == 'approx':
+                    radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (
+                        1 / bloch_dim
+                    ) / math.sqrt(math.pi)
+                elif self.method == "approx":
                     volume = compute_polytope_volume(pc.Polytope(A, b))
-                    radius = ((volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim)
-                              / math.sqrt(math.pi))
-                elif self.method == 'hit_and_run':
+                    radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (
+                        1 / bloch_dim
+                    ) / math.sqrt(math.pi)
+                elif self.method == "hit_and_run":
                     rho_bloch = rho.bloch[1:]
                     radius = find_max_distance_to_polytope(A, b, rho_bloch, rho_bloch)
                 else:
@@ -263,9 +297,9 @@ class WangInterval(ConfidenceInterval):
 
     def _count_confidence(self, delta, frequencies):
         freq_plus_delta = np.clip(frequencies + delta, self.EPS, 1 - self.EPS)
-        KL_divergence = (frequencies * np.log(frequencies / freq_plus_delta)
-                         + (1 - frequencies) * np.log(
-                    (1 - frequencies) / (1 - freq_plus_delta)))
+        KL_divergence = frequencies * np.log(frequencies / freq_plus_delta) + (
+            1 - frequencies
+        ) * np.log((1 - frequencies) / (1 - freq_plus_delta))
         KL_divergence = np.where(freq_plus_delta < 1 - self.EPS, KL_divergence, np.inf)
         epsilons = np.exp(-self.tmg.n_measurements[:, None] * KL_divergence)
         epsilons = np.where(np.abs(frequencies - 1) < 2 * self.EPS, 0, epsilons)
@@ -282,9 +316,23 @@ class WangInterval(ConfidenceInterval):
 
 # noinspection PyProtectedMember,PyProtectedMember
 class HolderInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, kind='wang', max_confidence=0.999,
-                 method='lin', method_boot='lin', physical=True, init='lin', tol=1e-3,
-                 max_iter=100, step=0.01, burn_steps=1000, thinning=1, wang_method='bbox'):
+    def __init__(
+        self,
+        tmg,
+        n_points=1000,
+        kind="wang",
+        max_confidence=0.999,
+        method="lin",
+        method_boot="lin",
+        physical=True,
+        init="lin",
+        tol=1e-3,
+        max_iter=100,
+        step=0.01,
+        burn_steps=1000,
+        thinning=1,
+        wang_method="bbox",
+    ):
         """Conducts `n_points` experiments, constructs confidence intervals for each,
         computes confidence level that corresponds to the distance between
         the target state and the point estimate and returns a sorted list of these levels.
@@ -348,54 +396,79 @@ class HolderInterval(ConfidenceInterval):
 
     def __call__(self, conf_levels=None):
         if conf_levels is None:
-            conf_levels = np.linspace(1e-3, 1-1e-3, 1000)
-        if not hasattr(self, 'intervals'):
+            conf_levels = np.linspace(1e-3, 1 - 1e-3, 1000)
+        if not hasattr(self, "intervals"):
             self.setup()
         state_results = [interval(conf_levels) for interval in self.intervals]
         state_deltas = np.asarray([state_result[0] for state_result in state_results])
         conf_levels = state_results[0][1] ** self.tmg.input_basis.dim
 
-        coef = np.abs(np.einsum('ij,ik->jk', self.tmg._decomposed_single_entries,
-                                self.tmg._decomposed_single_entries.conj()))
-        state_deltas_composition = np.einsum('ik,jk->ijk', state_deltas, state_deltas)
-        dist = np.sqrt(np.einsum('ijk,ij->k', state_deltas_composition, coef))
+        coef = np.abs(
+            np.einsum(
+                "ij,ik->jk",
+                self.tmg._decomposed_single_entries,
+                self.tmg._decomposed_single_entries.conj(),
+            )
+        )
+        state_deltas_composition = np.einsum("ik,jk->ijk", state_deltas, state_deltas)
+        dist = np.sqrt(np.einsum("ijk,ij->k", state_deltas_composition, coef))
         return dist, conf_levels
 
     def setup(self):
         if self.mode == Mode.STATE:
             raise NotImplementedError("Holder interval works only for process tomography")
-        if self.kind == 'moment':
-            self.intervals = [MomentInterval(tmg, self.n_points, self.max_confidence)
-                              for tmg in self.tmg.tomographs]
-        elif self.kind == 'mhmc':
+        if self.kind == "moment":
+            self.intervals = [
+                MomentInterval(tmg, self.n_points, self.max_confidence)
+                for tmg in self.tmg.tomographs
+            ]
+        elif self.kind == "mhmc":
             self.intervals = [
                 MHMCStateInterval(tmg, self.n_points, self.step, self.burn_steps, self.thinning)
                 for tmg in self.tmg.tomographs
             ]
-        elif self.kind == 'bootstrap':
+        elif self.kind == "bootstrap":
             self.intervals = [
-                BootstrapStateInterval(tmg, self.n_points, self.method, physical=self.physical,
-                                       init=self.init, tol=self.tol, max_iter=self.max_iter)
+                BootstrapStateInterval(
+                    tmg,
+                    self.n_points,
+                    self.method,
+                    physical=self.physical,
+                    init=self.init,
+                    tol=self.tol,
+                    max_iter=self.max_iter,
+                )
                 for tmg in self.tmg.tomographs
             ]
-        elif self.kind == 'sugiyama':
-            self.intervals = [SugiyamaInterval(tmg, self.n_points, self.max_confidence)
-                              for tmg in self.tmg.tomographs]
-        elif self.kind == 'wang':
+        elif self.kind == "sugiyama":
+            self.intervals = [
+                SugiyamaInterval(tmg, self.n_points, self.max_confidence)
+                for tmg in self.tmg.tomographs
+            ]
+        elif self.kind == "wang":
             self.intervals = [
                 WangInterval(tmg, self.n_points, self.wang_method, self.max_confidence)
                 for tmg in self.tmg.tomographs
             ]
         else:
-            raise ValueError('Incorrect value for argument `kind`.')
+            raise ValueError("Incorrect value for argument `kind`.")
 
         for interval in self.intervals:
             interval.setup()
 
 
 class BootstrapStateInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, method='lin', physical=True,
-                 init='lin', tol=1e-3, max_iter=100, state=None):
+    def __init__(
+        self,
+        tmg,
+        n_points=1000,
+        method="lin",
+        physical=True,
+        init="lin",
+        tol=1e-3,
+        max_iter=100,
+        state=None,
+    ):
         """Perform multiple tomography simulation on the preferred state with the same
         measurements number
         and POVM matrix, as in the preceding experiment. Count the distances to the
@@ -430,19 +503,28 @@ class BootstrapStateInterval(ConfidenceInterval):
         if self.mode == Mode.CHANNEL:
             raise NotImplementedError("This interval works only for state tomography")
         if self.state is None:
-            if hasattr(self.tmg, 'reconstructed_state'):
+            if hasattr(self.tmg, "reconstructed_state"):
                 self.state = self.tmg.reconstructed_state
             else:
-                self.state = self.tmg.point_estimate(method=self.method, physical=self.physical,
-                                                     init=self.init, tol=self.tol,
-                                                     max_iter=self.max_iter)
+                self.state = self.tmg.point_estimate(
+                    method=self.method,
+                    physical=self.physical,
+                    init=self.init,
+                    tol=self.tol,
+                    max_iter=self.max_iter,
+                )
 
         dist = np.empty(self.n_points)
         boot_tmg = self.tmg.__class__(self.state, self.tmg.dst)
         for i in range(self.n_points):
             boot_tmg.experiment(self.tmg.n_measurements, self.tmg.povm_matrix)
-            rho = boot_tmg.point_estimate(method=self.method, physical=self.physical,
-                                          init=self.init, tol=self.tol, max_iter=self.max_iter)
+            rho = boot_tmg.point_estimate(
+                method=self.method,
+                physical=self.physical,
+                init=self.init,
+                tol=self.tol,
+                max_iter=self.max_iter,
+            )
             dist[i] = self.tmg.dst(rho, self.state)
         dist.sort()
         conf_levels = np.linspace(0, 1, len(dist))
@@ -450,8 +532,18 @@ class BootstrapStateInterval(ConfidenceInterval):
 
 
 class BootstrapProcessInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, method='lifp', cptp=True, tol=1e-10, channel=None,
-                 states_est_method='lin', states_physical=True, states_init='lin'):
+    def __init__(
+        self,
+        tmg,
+        n_points=1000,
+        method="lifp",
+        cptp=True,
+        tol=1e-10,
+        channel=None,
+        states_est_method="lin",
+        states_physical=True,
+        states_init="lin",
+    ):
         """Perform multiple tomography simulation on the preferred channel with the same
         measurements number
         and POVM matrix, as in the preceding experiment. Count the distances to the
@@ -487,22 +579,27 @@ class BootstrapProcessInterval(ConfidenceInterval):
         if self.mode == Mode.STATE:
             raise NotImplementedError("This interval works only for process tomography")
         if self.channel is None:
-            if hasattr(self.tmg, 'reconstructed_channel'):
+            if hasattr(self.tmg, "reconstructed_channel"):
                 self.channel = self.tmg.reconstructed_channel
             else:
                 self.channel = self.tmg.point_estimate(
-                    method=self.method, states_physical=self.states_physical,
-                    states_init=self.states_init, cptp=self.cptp
+                    method=self.method,
+                    states_physical=self.states_physical,
+                    states_init=self.states_init,
+                    cptp=self.cptp,
                 )
 
         dist = np.empty(self.n_points)
         boot_tmg = self.tmg.__class__(self.channel, self.tmg.input_states, self.tmg.dst)
         for i in range(self.n_points):
-            boot_tmg.experiment(self.tmg.tomographs[0].n_measurements,
-                                povm=self.tmg.tomographs[0].povm_matrix)
+            boot_tmg.experiment(
+                self.tmg.tomographs[0].n_measurements, povm=self.tmg.tomographs[0].povm_matrix
+            )
             estim_channel = boot_tmg.point_estimate(
-                method=self.method, states_physical=self.states_physical,
-                states_init=self.states_init, cptp=self.cptp
+                method=self.method,
+                states_physical=self.states_physical,
+                states_init=self.states_init,
+                cptp=self.cptp,
             )
             dist[i] = self.tmg.dst(estim_channel.choi, self.channel.choi)
         dist.sort()
@@ -512,8 +609,18 @@ class BootstrapProcessInterval(ConfidenceInterval):
 
 # noinspection PyProtectedMember
 class MHMCStateInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, step=0.01, burn_steps=1000, thinning=1,
-                 warm_start=False, use_new_estimate=False, state=None, verbose=False):
+    def __init__(
+        self,
+        tmg,
+        n_points=1000,
+        step=0.01,
+        burn_steps=1000,
+        thinning=1,
+        warm_start=False,
+        use_new_estimate=False,
+        state=None,
+        verbose=False,
+    ):
         """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood
         distribution.
         Count the distances between these samples and point estimate.
@@ -554,19 +661,29 @@ class MHMCStateInterval(ConfidenceInterval):
         if not self.use_new_estimate:
             self.state = self.tmg.reconstructed_state
         elif self.state is None:
-            self.state = self.tmg.point_estimate(method='mle', physical=True)
+            self.state = self.tmg.point_estimate(method="mle", physical=True)
 
         dim = 4 ** self.tmg.state.n_qubits
-        if not (self.warm_start and hasattr(self, 'chain')):
+        if not (self.warm_start and hasattr(self, "chain")):
             x_init = _matrix_to_real_tril_vec(self.state.matrix)
             self.chain = MHMC(
-                lambda x: -self.tmg._nll(x), step=self.step, burn_steps=self.burn_steps,
-                dim=dim, update_rule=normalized_update, symmetric=True, x_init=x_init
+                lambda x: -self.tmg._nll(x),
+                step=self.step,
+                burn_steps=self.burn_steps,
+                dim=dim,
+                update_rule=normalized_update,
+                symmetric=True,
+                x_init=x_init,
             )
-        samples, acceptance_rate = self.chain.sample(self.n_points, self.thinning,
-                                                     verbose=self.verbose)
-        dist = np.asarray([self.tmg.dst(_real_tril_vec_to_matrix(tril_vec), self.state.matrix)
-                           for tril_vec in samples])
+        samples, acceptance_rate = self.chain.sample(
+            self.n_points, self.thinning, verbose=self.verbose
+        )
+        dist = np.asarray(
+            [
+                self.tmg.dst(_real_tril_vec_to_matrix(tril_vec), self.state.matrix)
+                for tril_vec in samples
+            ]
+        )
         dist.sort()
         conf_levels = np.linspace(0, 1, len(dist))
         self.cl_to_dist = interp1d(conf_levels, dist)
@@ -574,9 +691,23 @@ class MHMCStateInterval(ConfidenceInterval):
 
 # noinspection PyProtectedMember,PyProtectedMember
 class MHMCProcessInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, step=0.01, burn_steps=1000, thinning=1, warm_start=False,
-                 method='lifp', states_est_method='lin', states_physical=True, states_init='lin',
-                 use_new_estimate=False, channel=None, verbose=False, return_samples=False):
+    def __init__(
+        self,
+        tmg,
+        n_points=1000,
+        step=0.01,
+        burn_steps=1000,
+        thinning=1,
+        warm_start=False,
+        method="lifp",
+        states_est_method="lin",
+        states_physical=True,
+        states_init="lin",
+        use_new_estimate=False,
+        channel=None,
+        verbose=False,
+        return_samples=False,
+    ):
         """Use Metropolis-Hastings Monte Carlo algorithm to obtain samples from likelihood
         distribution.
         Count the distances between these samples and point estimate.
@@ -622,21 +753,30 @@ class MHMCProcessInterval(ConfidenceInterval):
             self.channel = self.tmg.reconstructed_channel
         elif self.channel is None:
             self.channel = self.tmg.point_estimate(
-                self.method, states_est_method=self.states_est_method,
-                states_physical=self.states_physical, states_init=self.states_init
+                self.method,
+                states_est_method=self.states_est_method,
+                states_physical=self.states_physical,
+                states_init=self.states_init,
             )
 
         dim = 16 ** self.tmg.channel.n_qubits
-        if not (self.warm_start and hasattr(self, 'chain')):
+        if not (self.warm_start and hasattr(self, "chain")):
             x_init = _mat2vec(self.channel.choi.matrix)
             self.chain = MHMC(
-                lambda x: -self.tmg._nll(x), step=self.step, burn_steps=self.burn_steps, dim=dim,
-                update_rule=self.tmg._cptp_update_rule, symmetric=True, x_init=x_init
+                lambda x: -self.tmg._nll(x),
+                step=self.step,
+                burn_steps=self.burn_steps,
+                dim=dim,
+                update_rule=self.tmg._cptp_update_rule,
+                symmetric=True,
+                x_init=x_init,
             )
-        samples, acceptance_rate = self.chain.sample(self.n_points, self.thinning,
-                                                     verbose=self.verbose)
+        samples, acceptance_rate = self.chain.sample(
+            self.n_points, self.thinning, verbose=self.verbose
+        )
         dist = np.asarray(
-            [self.tmg.dst(_vec2mat(choi_vec), self.channel.choi.matrix) for choi_vec in samples])
+            [self.tmg.dst(_vec2mat(choi_vec), self.channel.choi.matrix) for choi_vec in samples]
+        )
         dist.sort()
         conf_levels = np.linspace(0, 1, len(dist))
         if self.return_samples:
@@ -651,9 +791,9 @@ class Mode(Enum):
 
 
 def _pop_hidden_keys(kwargs):
-    keys_to_pop = ['self', 'tmg']
+    keys_to_pop = ["self", "tmg"]
     for key in kwargs.keys():
-        if key.startswith('__'):
+        if key.startswith("__"):
             keys_to_pop.append(key)
     for key in keys_to_pop:
         kwargs.pop(key)

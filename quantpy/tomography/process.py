@@ -1,23 +1,26 @@
+import itertools as it
+
 import numpy as np
 import scipy.linalg as la
 import scipy.stats as sts
-import itertools as it
 
-from .state import StateTomograph
+from ..basis import Basis
+from ..channel import Channel
 from ..geometry import hs_dst, if_dst, trace_dst
+from ..measurements import generate_measurement_matrix
+from ..mhmc import MHMC
+from ..qobj import Qobj, fully_mixed
 from ..routines import (
-    generate_single_entries, kron,
-    _real_tril_vec_to_matrix,
+    _left_inv,
+    _mat2vec,
     _out_ptrace_oper,
-    _vec2mat, _mat2vec,
-    _left_inv
+    _real_tril_vec_to_matrix,
+    _vec2mat,
+    generate_single_entries,
+    kron,
 )
 from ..stats import l2_mean, l2_variance
-from ..qobj import Qobj, fully_mixed
-from ..channel import Channel
-from ..measurements import generate_measurement_matrix
-from ..basis import Basis
-from ..mhmc import MHMC
+from .state import StateTomograph
 
 
 class ProcessTomograph:
@@ -62,31 +65,33 @@ class ProcessTomograph:
         Reconstruct a channel from the data obtained in the experiment
     """
 
-    def __init__(self, channel, input_states='proj4', dst='hs'):
+    def __init__(self, channel, input_states="proj4", dst="hs"):
         self.channel = channel
         if isinstance(dst, str):
-            if dst == 'hs':
+            if dst == "hs":
                 self.dst = hs_dst
-            elif dst == 'trace':
+            elif dst == "trace":
                 self.dst = trace_dst
-            elif dst == 'if':
+            elif dst == "if":
                 self.dst = if_dst
             else:
-                raise ValueError('Invalid value for argument `dst`')
+                raise ValueError("Invalid value for argument `dst`")
         else:
             self.dst = dst
         self.input_states = input_states
         self.input_basis = Basis(_generate_input_states(input_states, channel.n_qubits))
         if self.input_basis.dim != 4 ** channel.n_qubits:
-            raise ValueError('Input states do not constitute a basis')
-        self._decomposed_single_entries = np.array([
-            self.input_basis.decompose(Qobj(single_entry))
-            for single_entry in generate_single_entries(2 ** channel.n_qubits)
-        ])
+            raise ValueError("Input states do not constitute a basis")
+        self._decomposed_single_entries = np.array(
+            [
+                self.input_basis.decompose(Qobj(single_entry))
+                for single_entry in generate_single_entries(2 ** channel.n_qubits)
+            ]
+        )
         self._ptrace_oper = _out_ptrace_oper(channel.n_qubits)
         self._ptrace_dag_ptrace = self._ptrace_oper.T.conj() @ self._ptrace_oper
 
-    def experiment(self, n_measurements, povm='proj-set', warm_start=False):
+    def experiment(self, n_measurements, povm="proj-set", warm_start=False):
         """Simulate a real quantum process tomography by performing
         quantum state tomography on each of transformed input states.
 
@@ -126,8 +131,16 @@ class ProcessTomograph:
         for tmg in self.tomographs:
             tmg.experiment(n_measurements, povm, warm_start=warm_start)
 
-    def point_estimate(self, method='lifp', cptp=True, n_iter=1000, tol=1e-10,
-                       states_est_method='lin', states_physical=True, states_init='lin'):
+    def point_estimate(
+        self,
+        method="lifp",
+        cptp=True,
+        n_iter=1000,
+        tol=1e-10,
+        states_est_method="lin",
+        states_physical=True,
+        states_init="lin",
+    ):
         """Reconstruct a Choi matrix from the data obtained in the experiment.
 
         Parameters
@@ -174,9 +187,10 @@ class ProcessTomograph:
         self._lifp_oper = []
         self._bloch_oper = []
         povm_matrix = np.reshape(
-            self.tomographs[0].povm_matrix * self.tomographs[0].n_measurements[:, None, None]
+            self.tomographs[0].povm_matrix
+            * self.tomographs[0].n_measurements[:, None, None]
             / np.sum(self.tomographs[0].n_measurements),
-            (-1, self.tomographs[0].povm_matrix.shape[-1])
+            (-1, self.tomographs[0].povm_matrix.shape[-1]),
         )
         for inp_state, povm_bloch in it.product(self.input_basis.elements, povm_matrix):
             row = _mat2vec(np.kron(inp_state.matrix, Qobj(povm_bloch).matrix.T))
@@ -190,15 +204,16 @@ class ProcessTomograph:
 
         self._unnorm_results = np.hstack([stmg.results for stmg in self.tomographs])
 
-        if method == 'lifp':
+        if method == "lifp":
             return self._point_estimate_lifp(cptp=cptp)
-        elif method == 'pgdb':
+        elif method == "pgdb":
             return self._point_estimate_pgdb(n_iter=n_iter, tol=tol)
-        elif method == 'states':
+        elif method == "states":
             return self._point_estimate_states(
-                cptp=cptp, method=states_est_method, physical=states_physical, init=states_init)
+                cptp=cptp, method=states_est_method, physical=states_physical, init=states_init
+            )
         else:
-            raise ValueError('Incorrect value for argument `method`')
+            raise ValueError("Incorrect value for argument `method`")
 
     def cptp_projection(self, channel, n_iter=1000, tol=1e-12):
         """Implementation of an iterative CPTP projection subroutine"""
@@ -219,7 +234,8 @@ class ProcessTomograph:
             x_diff = self.cp_projection(Channel(_vec2mat(y + q)), vectorized=True) - x
             x += x_diff
             stop_criterion_value += 2 * (
-                        np.abs(np.sum(y_diff.T.conj() * q)) + np.abs(np.sum(x_diff.T.conj() * p)))
+                np.abs(np.sum(y_diff.T.conj() * q)) + np.abs(np.sum(x_diff.T.conj() * p))
+            )
             p_diff = x - y
             p += p_diff
             q_diff = y - x
@@ -233,10 +249,14 @@ class ProcessTomograph:
         """Projection of a channel onto TP space"""
         dim = 2 ** channel.n_qubits
         choi_vec = _mat2vec(channel.choi.matrix)
-        tp_choi_vec = choi_vec + (
+        tp_choi_vec = (
+            choi_vec
+            + (
                 self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim))
                 - self._ptrace_dag_ptrace @ choi_vec
-        ) / dim
+            )
+            / dim
+        )
         if vectorized:
             return tp_choi_vec
         return Channel(_vec2mat(tp_choi_vec))
@@ -257,7 +277,8 @@ class ProcessTomograph:
 
     def _point_estimate_lifp(self, cptp):
         self.frequencies = np.hstack(
-            [stmg.results / stmg.results.sum() for stmg in self.tomographs])
+            [stmg.results / stmg.results.sum() for stmg in self.tomographs]
+        )
         self.reconstructed_channel = Channel(_vec2mat(self._lifp_oper_inv @ self.frequencies))
         if cptp:
             self.reconstructed_channel = self.cptp_projection(self.reconstructed_channel)
@@ -272,8 +293,9 @@ class ProcessTomograph:
             grad = -self._lifp_oper.T.conj() @ (self._unnorm_results / probas)
             D = self._cptp_projection_vec(choi_vec - grad / mu) - choi_vec
             alpha = 1
-            while (self._nll(choi_vec + alpha * D) - self._nll(choi_vec)
-                   > gamma * alpha * np.dot(D, grad)):
+            while self._nll(choi_vec + alpha * D) - self._nll(choi_vec) > gamma * alpha * np.dot(
+                D, grad
+            ):
                 alpha /= 2
             new_choi_vec = choi_vec + alpha * D
             if self._nll(choi_vec) - self._nll(new_choi_vec) > tol:

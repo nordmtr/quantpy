@@ -17,11 +17,11 @@ class Basis:
             (A, B) = Tr(A @ B.H)
     """
 
-    def __init__(self, elements, inner_product='trace'):
+    def __init__(self, elements, inner_product="trace"):
         self.elements = elements
         self.dim = len(elements)
         self.gram = np.zeros((self.dim, self.dim), dtype=np.complex128)
-        if inner_product == 'trace':
+        if inner_product == "trace":
             self.inner_product = product
         else:
             self.inner_product = inner_product
@@ -31,8 +31,9 @@ class Basis:
 
     def decompose(self, obj):
         """Return a decomposition of the obj"""
-        rhs = np.array([self.inner_product(element, obj) for element in self.elements],
-                       dtype=np.complex128)
+        rhs = np.array(
+            [self.inner_product(element, obj) for element in self.elements], dtype=np.complex128
+        )
         return np.conj(la.solve(self.gram, rhs))
 
     def compose(self, vector):
@@ -40,4 +41,4 @@ class Basis:
         return np.sum([self.elements[i] * vector[i] for i in range(self.dim)])
 
     def __repr__(self):
-        return 'Basis object\n' + repr(self.elements)
+        return "Basis object\n" + repr(self.elements)

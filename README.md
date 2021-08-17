@@ -4,13 +4,11 @@ A framework for quantum computations and quantum tomography simulations. Support
 
 ## Installation
 
-To install the package you need to clone this repository to your computer and install it using pip.
+To install the package you need to clone this repository to your computer and install it using poetry.
 ```bash
 git clone https://github.com/esthete88/quantpy.git
 cd quantpy
-conda create -n quantpy --file conda-requirements
-conda activate quantpy
-pip install -e .
+poetry install
 ```
 
 ## Table of contents

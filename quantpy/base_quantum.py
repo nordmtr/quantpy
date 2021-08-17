@@ -1,11 +1,12 @@
-import numpy as np
-
 from abc import ABC, abstractmethod
 from copy import deepcopy
+
+import numpy as np
 
 
 class BaseQuantum(ABC):
     """Abstract base class for quantum states, gates, operators and channels"""
+
     @abstractmethod
     def __repr__(self):
         pass
@@ -54,13 +55,13 @@ class BaseQuantum(ABC):
         if isinstance(other, (int, float, complex)):
             return self.__class__(self.matrix * other)
         else:
-            raise ValueError('Only multiplication by a scalar is allowed')
+            raise ValueError("Only multiplication by a scalar is allowed")
 
     def __truediv__(self, other):
         if isinstance(other, (int, float, complex)):
             return self.__class__(self.matrix / other)
         else:
-            raise ValueError('Only division by a scalar is allowed')
+            raise ValueError("Only division by a scalar is allowed")
 
     def __iadd__(self, other):
         self.matrix = self.matrix + other.matrix
@@ -75,14 +76,14 @@ class BaseQuantum(ABC):
             self.matrix = self.matrix * other
             return self
         else:
-            raise ValueError('Only multiplication by a scalar is supported')
+            raise ValueError("Only multiplication by a scalar is supported")
 
     def __idiv__(self, other):
         if type(other) in (int, float, complex):
             self.matrix = self.matrix / other
             return self
         else:
-            raise ValueError('Only division by a scalar is supported')
+            raise ValueError("Only division by a scalar is supported")
 
     def __rmul__(self, other):
         return self.__mul__(other)

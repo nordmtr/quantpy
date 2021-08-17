@@ -1,6 +1,6 @@
-import numpy as np
-
 from copy import deepcopy
+
+import numpy as np
 
 from .base_quantum import BaseQuantum
 from .qobj import Qobj
@@ -41,6 +41,7 @@ class Operator(BaseQuantum):
     transform()
         Apply this operator to a quantum state
     """
+
     def __init__(self, data):
         if isinstance(data, self.__class__):
             self.__dict__ = deepcopy(data.__dict__)
@@ -64,6 +65,7 @@ class Operator(BaseQuantum):
     def as_channel(self):
         """Return a channel representation of this Operator"""
         from .channel import Channel
+
         return Channel(self.transform, self.n_qubits)
 
     def trace(self):
@@ -71,126 +73,161 @@ class Operator(BaseQuantum):
         return np.trace(self.matrix)
 
     def __repr__(self):
-        return 'Quantum Operator\n' + repr(self.matrix)
+        return "Quantum Operator\n" + repr(self.matrix)
 
 
 # One-qubit gates
 
 # noinspection PyPep8Naming
 def PHASE(theta):
-    return Operator([
-        [1, 0],
-        [0, np.exp(1j * theta)],
-    ])
+    return Operator(
+        [
+            [1, 0],
+            [0, np.exp(1j * theta)],
+        ]
+    )
 
 
 # noinspection PyPep8Naming
 def RX(theta):
-    return Operator([
-        [np.cos(theta/2), -1j * np.sin(theta/2)],
-        [-1j * np.sin(theta/2), np.cos(theta/2)],
-    ])
+    return Operator(
+        [
+            [np.cos(theta / 2), -1j * np.sin(theta / 2)],
+            [-1j * np.sin(theta / 2), np.cos(theta / 2)],
+        ]
+    )
 
 
 # noinspection PyPep8Naming
 def RY(theta):
-    return Operator([
-        [np.cos(theta/2), -np.sin(theta/2)],
-        [np.sin(theta/2), np.cos(theta/2)],
-    ])
+    return Operator(
+        [
+            [np.cos(theta / 2), -np.sin(theta / 2)],
+            [np.sin(theta / 2), np.cos(theta / 2)],
+        ]
+    )
 
 
 # noinspection PyPep8Naming
 def RZ(theta):
-    return Operator([
-        [np.exp(-0.5j*theta), 0],
-        [0, np.exp(0.5j*theta)],
-    ])
+    return Operator(
+        [
+            [np.exp(-0.5j * theta), 0],
+            [0, np.exp(0.5j * theta)],
+        ]
+    )
 
 
 Id = Operator(_SIGMA_I)
 X = Operator(_SIGMA_X)
 Y = Operator(_SIGMA_Y)
 Z = Operator(_SIGMA_Z)
-H = Operator([
-    [1, 1],
-    [1, -1],
-]) / np.sqrt(2)
-T = PHASE(np.pi/4)
-S = PHASE(np.pi/2)
+H = (
+    Operator(
+        [
+            [1, 1],
+            [1, -1],
+        ]
+    )
+    / np.sqrt(2)
+)
+T = PHASE(np.pi / 4)
+S = PHASE(np.pi / 2)
 
 # Two-qubit gates
 
-CNOT = Operator([
-    [1, 0, 0, 0],
-    [0, 1, 0, 0],
-    [0, 0, 0, 1],
-    [0, 0, 1, 0],
-])
+CNOT = Operator(
+    [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 1],
+        [0, 0, 1, 0],
+    ]
+)
 
-CY = Operator([
-    [1, 0, 0, 0],
-    [0, 1, 0, 0],
-    [0, 0, 0, -1j],
-    [0, 0, 1j, 0],
-])
+CY = Operator(
+    [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, -1j],
+        [0, 0, 1j, 0],
+    ]
+)
 
-CZ = Operator([
-    [1, 0, 0, 0],
-    [0, 1, 0, 0],
-    [0, 0, 1, 0],
-    [0, 0, 0, -1],
-])
+CZ = Operator(
+    [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, -1],
+    ]
+)
 
-SWAP = Operator([
-    [1, 0, 0, 0],
-    [0, 0, 1, 0],
-    [0, 1, 0, 0],
-    [0, 0, 0, 1],
-])
+SWAP = Operator(
+    [
+        [1, 0, 0, 0],
+        [0, 0, 1, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 1],
+    ]
+)
 
-ISWAP = Operator([
-    [1, 0, 0, 0],
-    [0, 0, 1j, 0],
-    [0, 1j, 0, 0],
-    [0, 0, 0, 1],
-])
+ISWAP = Operator(
+    [
+        [1, 0, 0, 0],
+        [0, 0, 1j, 0],
+        [0, 1j, 0, 0],
+        [0, 0, 0, 1],
+    ]
+)
 
-MS = Operator([
-    [1, 0, 0, 1j],
-    [0, 1, -1j, 0],
-    [0, -1j, 1, 0],
-    [1j, 0, 0, 1],
-]) / np.sqrt(2)
-
-
-Toffoli = Operator([
-    [1, 0, 0, 0, 0, 0, 0, 0],
-    [0, 1, 0, 0, 0, 0, 0, 0],
-    [0, 0, 1, 0, 0, 0, 0, 0],
-    [0, 0, 0, 1, 0, 0, 0, 0],
-    [0, 0, 0, 0, 1, 0, 0, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 1],
-    [0, 0, 0, 0, 0, 0, 1, 0],
-])
+MS = (
+    Operator(
+        [
+            [1, 0, 0, 1j],
+            [0, 1, -1j, 0],
+            [0, -1j, 1, 0],
+            [1j, 0, 0, 1],
+        ]
+    )
+    / np.sqrt(2)
+)
 
 
-Fredkin = Operator([
-    [1, 0, 0, 0, 0, 0, 0, 0],
-    [0, 1, 0, 0, 0, 0, 0, 0],
-    [0, 0, 1, 0, 0, 0, 0, 0],
-    [0, 0, 0, 1, 0, 0, 0, 0],
-    [0, 0, 0, 0, 1, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 1, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 1],
-])
+Toffoli = Operator(
+    [
+        [1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 0, 0, 1, 0],
+    ]
+)
+
+
+Fredkin = Operator(
+    [
+        [1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 1],
+    ]
+)
 
 
 def _choi_to_kraus(choi):
     EPS = 1e-15
     eigvals, eigvecs = choi.eig()
     eigvecs = list(eigvecs.T)
-    return [Operator(_vec2mat(vec) * np.sqrt(val)) for val, vec in zip(eigvals, eigvecs)
-            if abs(val) > EPS]
+    return [
+        Operator(_vec2mat(vec) * np.sqrt(val))
+        for val, vec in zip(eigvals, eigvecs)
+        if abs(val) > EPS
+    ]

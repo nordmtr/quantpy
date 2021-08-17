@@ -1,13 +1,13 @@
-import sys
-import numpy as np
-import scipy.linalg as la
 import math
-
+import sys
 from copy import deepcopy
 
-from .geometry import product
-from .routines import generate_pauli, _density
+import numpy as np
+import scipy.linalg as la
+
 from .base_quantum import BaseQuantum
+from .geometry import product
+from .routines import _density, generate_pauli
 
 
 class Qobj(BaseQuantum):
@@ -97,20 +97,20 @@ class Qobj(BaseQuantum):
                     self._bloch = np.ones(dim ** 2) / dim
                     self._bloch[1:] = data
                 self._matrix = None
-                self._types.add('bloch')
+                self._types.add("bloch")
             elif len(data.shape) == 2:
                 self._matrix = data
                 self._bloch = None
-                self._types.add('matrix')
+                self._types.add("matrix")
                 self.n_qubits = int(np.log2(data.shape[0]))
             else:
-                raise ValueError('Invalid data format')
+                raise ValueError("Invalid data format")
 
     @property
     def matrix(self):
         """Quantum object in a matrix form"""
-        if 'matrix' not in self._types:
-            self._types.add('matrix')
+        if "matrix" not in self._types:
+            self._types.add("matrix")
             basis = generate_pauli(self.n_qubits)
             self._matrix = np.zeros((2 ** self.n_qubits, 2 ** self.n_qubits), dtype=np.complex128)
             for i in range(4 ** self.n_qubits):
@@ -119,15 +119,15 @@ class Qobj(BaseQuantum):
 
     @matrix.setter
     def matrix(self, data):
-        self._types.add('matrix')
-        self._types.discard('bloch')
+        self._types.add("matrix")
+        self._types.discard("bloch")
         self._matrix = np.array(data)
 
     @property
     def bloch(self):
         """A vector, representing the quantum object in Pauli basis"""
-        if 'bloch' not in self._types:
-            self._types.add('bloch')
+        if "bloch" not in self._types:
+            self._types.add("bloch")
             basis = generate_pauli(self.n_qubits)
             self._bloch = np.array(
                 [np.real(product(basis_element, self._matrix)) for basis_element in basis]
@@ -138,8 +138,8 @@ class Qobj(BaseQuantum):
     def bloch(self, data):
         if isinstance(data, list):
             data = np.array(data)
-        self._types.add('bloch')
-        self._types.discard('matrix')
+        self._types.add("bloch")
+        self._types.discard("matrix")
         self._bloch = np.array(data)
 
     def ptrace(self, keep=(0,)):
@@ -210,11 +210,11 @@ class Qobj(BaseQuantum):
         if herm_flag and pos_flag and trace_flag:
             return True
         if not herm_flag and verbose:
-            print('Non-hermitian', file=sys.stderr)
+            print("Non-hermitian", file=sys.stderr)
         if not pos_flag and verbose:
-            print('Non-positive', file=sys.stderr)
+            print("Non-positive", file=sys.stderr)
         if not trace_flag and verbose:
-            print('Trace is not 1', file=sys.stderr)
+            print("Trace is not 1", file=sys.stderr)
         return False
 
     def trace(self):
@@ -232,20 +232,20 @@ class Qobj(BaseQuantum):
     def ket(self):
         """Return ket vector representation of the quantum object if it is pure"""
         if not self.is_pure():
-            raise ValueError('Quantum object is not pure')
+            raise ValueError("Quantum object is not pure")
         return self.eig()[1][:, 0]
 
     def __repr__(self):
-        return 'Quantum object\n' + repr(self.matrix)
+        return "Quantum object\n" + repr(self.matrix)
 
     def _repr_latex_(self):
         """Generate a LaTeX representation of the Qobj instance. Can be used for
         formatted output in IPython notebook.
         """
-        s = r'Quantum object: '
+        s = r"Quantum object: "
         M, N = self.matrix.shape
 
-        s += r'\begin{equation*}\left(\begin{array}{*{11}c}'
+        s += r"\begin{equation*}\left(\begin{array}{*{11}c}"
 
         def _format_float(value):
             if value == 0.0:
@@ -280,60 +280,60 @@ class Qobj(BaseQuantum):
             for m in range(5):
                 for n in range(5):
                     s += _format_element(m, n, self.matrix[m, n])
-                s += r' & \cdots'
+                s += r" & \cdots"
                 for n in range(N - 5, N):
                     s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
+                s += r"\\"
 
             for n in range(5):
-                s += _format_element(m, n, r'\vdots')
-            s += r' & \ddots'
+                s += _format_element(m, n, r"\vdots")
+            s += r" & \ddots"
             for n in range(N - 5, N):
-                s += _format_element(m, n, r'\vdots')
-            s += r'\\'
+                s += _format_element(m, n, r"\vdots")
+            s += r"\\"
 
             for m in range(M - 5, M):
                 for n in range(5):
                     s += _format_element(m, n, self.matrix[m, n])
-                s += r' & \cdots'
+                s += r" & \cdots"
                 for n in range(N - 5, N):
                     s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
+                s += r"\\"
 
         elif M > 10 and N <= 10:
             # truncated vertically elongated matrix output
             for m in range(5):
                 for n in range(N):
                     s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
+                s += r"\\"
 
             for n in range(N):
-                s += _format_element(m, n, r'\vdots')
-            s += r'\\'
+                s += _format_element(m, n, r"\vdots")
+            s += r"\\"
 
             for m in range(M - 5, M):
                 for n in range(N):
                     s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
+                s += r"\\"
 
         elif M <= 10 and N > 10:
             # truncated horizontally elongated matrix output
             for m in range(M):
                 for n in range(5):
                     s += _format_element(m, n, self.matrix[m, n])
-                s += r' & \cdots'
+                s += r" & \cdots"
                 for n in range(N - 5, N):
                     s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
+                s += r"\\"
 
         else:
             # full output
             for m in range(M):
                 for n in range(N):
                     s += _format_element(m, n, self.matrix[m, n])
-                s += r'\\'
+                s += r"\\"
 
-        s += r'\end{array}\right)\end{equation*}'
+        s += r"\end{array}\right)\end{equation*}"
         return s
 
 

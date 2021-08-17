@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def generate_measurement_matrix(povm='proj', n_qubits=1):
+def generate_measurement_matrix(povm="proj", n_qubits=1):
     """Generates POVM matrix.
 
     Parameters
@@ -33,7 +33,7 @@ def generate_measurement_matrix(povm='proj', n_qubits=1):
     """
     is_full_povm = False
     if isinstance(povm, str):
-        if povm == 'proj':
+        if povm == "proj":
             x_pos = np.array([1, 1, 0, 0])
             x_neg = np.array([1, -1, 0, 0])
             y_pos = np.array([1, 0, 1, 0])
@@ -41,25 +41,30 @@ def generate_measurement_matrix(povm='proj', n_qubits=1):
             z_pos = np.array([1, 0, 0, 1])
             z_neg = np.array([1, 0, 0, -1])
             povm_1 = np.array([x_pos, x_neg, y_pos, y_neg, z_pos, z_neg]) / 6
-        elif povm == 'proj-set':
+        elif povm == "proj-set":
             x_pos = np.array([1, 1, 0, 0])
             x_neg = np.array([1, -1, 0, 0])
             y_pos = np.array([1, 0, 1, 0])
             y_neg = np.array([1, 0, -1, 0])
             z_pos = np.array([1, 0, 0, 1])
             z_neg = np.array([1, 0, 0, -1])
-            povm_1 = np.array([
-                np.array([x_pos, x_neg]),
-                np.array([y_pos, y_neg]),
-                np.array([z_pos, z_neg]),
-            ]) / 2
-        elif povm == 'proj4':
+            povm_1 = (
+                np.array(
+                    [
+                        np.array([x_pos, x_neg]),
+                        np.array([y_pos, y_neg]),
+                        np.array([z_pos, z_neg]),
+                    ]
+                )
+                / 2
+            )
+        elif povm == "proj4":
             x_pos = np.array([1, 1, 0, 0])
             y_pos = np.array([1, 0, 1, 0])
             z_pos = np.array([1, 0, 0, 1])
             z_neg = np.array([1, 0, 0, -1])
             povm_1 = np.array([x_pos, y_pos, z_pos, z_neg]) / 4
-        elif povm == 'sic':
+        elif povm == "sic":
             sq3 = 1 / np.sqrt(3)
             a0 = np.array([1, sq3, sq3, sq3])
             a1 = np.array([1, sq3, -sq3, -sq3])
@@ -67,7 +72,7 @@ def generate_measurement_matrix(povm='proj', n_qubits=1):
             a3 = np.array([1, -sq3, -sq3, sq3])
             povm_1 = np.array([a0, a1, a2, a3]) / 4
         else:
-            raise ValueError('Incorrect string shortcut for argument `povm`')
+            raise ValueError("Incorrect string shortcut for argument `povm`")
     elif isinstance(povm, np.ndarray):
         if povm.shape[-1] == 4:
             povm_1 = povm
@@ -77,9 +82,9 @@ def generate_measurement_matrix(povm='proj', n_qubits=1):
             povm_matrix = povm
             is_full_povm = True
         else:
-            raise ValueError('Incorrect POVM matrix')
+            raise ValueError("Incorrect POVM matrix")
     else:
-        raise ValueError('Incorrect value for argument `povm`')
+        raise ValueError("Incorrect value for argument `povm`")
     if not is_full_povm:
         if len(povm_1.shape) == 2:
             povm_1 = povm_1[None, :, :]

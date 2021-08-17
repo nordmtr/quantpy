@@ -1,14 +1,29 @@
 import numpy as np
 from tqdm.notebook import tqdm
 
-from .tomography.state import StateTomograph
 from .tomography.process import ProcessTomograph
+from .tomography.state import StateTomograph
 
 
-def get_CL_list_state(state, n_iter=1000, n_points=1000, interval='gamma', n_measurements=1000,
-                      method='lin', method_boot='lin', dst='hs', povm='proj-set',
-                      physical=True, init='lin', tol=1e-3, max_iter=100,
-                      step=0.01, burn_steps=1000, thinning=1, verbose=True):
+def get_CL_list_state(
+    state,
+    n_iter=1000,
+    n_points=1000,
+    interval="gamma",
+    n_measurements=1000,
+    method="lin",
+    method_boot="lin",
+    dst="hs",
+    povm="proj-set",
+    physical=True,
+    init="lin",
+    tol=1e-3,
+    max_iter=100,
+    step=0.01,
+    burn_steps=1000,
+    thinning=1,
+    verbose=True,
+):
     """Conducts `n_iter` experiments, constructs confidence intervals for each,
     computes confidence level that corresponds to the distance between
     the target state and the point estimate and returns a sorted list of these levels.
@@ -112,15 +127,16 @@ def get_CL_list_state(state, n_iter=1000, n_points=1000, interval='gamma', n_mea
 
         state_hat = tmg.point_estimate(method, init=init, max_iter=max_iter, tol=tol)
         delta = tmg.dst(state, state_hat)
-        if interval == 'gamma':
+        if interval == "gamma":
             distances, CLs = tmg.gamma_interval(n_points)
-        elif interval == 'mhmc':
+        elif interval == "mhmc":
             distances, CLs, _ = tmg.mhmc(n_points, step, burn_steps, thinning)
-        elif interval == 'boot':
-            distances, CLs = tmg.bootstrap(n_points, method_boot, physical=physical,
-                                           init=init, tol=tol, max_iter=max_iter)
+        elif interval == "boot":
+            distances, CLs = tmg.bootstrap(
+                n_points, method_boot, physical=physical, init=init, tol=tol, max_iter=max_iter
+            )
         else:
-            raise ValueError('Incorrect value for argument `interval`.')
+            raise ValueError("Incorrect value for argument `interval`.")
         indices_falling_into_CL = np.where(delta > distances)[0]
         if len(indices_falling_into_CL) == 0:
             results[i] = 0
@@ -131,12 +147,28 @@ def get_CL_list_state(state, n_iter=1000, n_points=1000, interval='gamma', n_mea
     return results
 
 
-def get_CL_list_channel(channel, n_iter=1000, interval='gamma', n_points=1000, n_measurements=1000,
-                        method='lifp', method_boot='lifp', dst='hs', povm='proj-set',
-                        input_states='proj4', cptp=True, tol=1e-3,
-                        states_physical=True, states_init='lin', states_est_method='lin',
-                        states_est_method_boot='lin', step=0.01, burn_steps=1000,
-                        thinning=1, verbose=True):
+def get_CL_list_channel(
+    channel,
+    n_iter=1000,
+    interval="gamma",
+    n_points=1000,
+    n_measurements=1000,
+    method="lifp",
+    method_boot="lifp",
+    dst="hs",
+    povm="proj-set",
+    input_states="proj4",
+    cptp=True,
+    tol=1e-3,
+    states_physical=True,
+    states_init="lin",
+    states_est_method="lin",
+    states_est_method_boot="lin",
+    step=0.01,
+    burn_steps=1000,
+    thinning=1,
+    verbose=True,
+):
     """Conducts `n_iter` experiments, constructs confidence intervals for each,
     computes confidence level that corresponds to the distance between
     the target Choi matrix and the point estimate and returns a sorted list of these levels.
@@ -250,23 +282,35 @@ def get_CL_list_channel(channel, n_iter=1000, interval='gamma', n_points=1000, n
     for i in cycle:
         tmg.experiment(n_measurements, povm)
 
-        channel_hat = tmg.point_estimate(method, states_est_method=states_est_method,
-                                         states_init=states_init)
+        channel_hat = tmg.point_estimate(
+            method, states_est_method=states_est_method, states_init=states_init
+        )
         delta = tmg.dst(channel.choi, channel_hat.choi)
-        if interval == 'gamma':
+        if interval == "gamma":
             distances, CLs = tmg.gamma_interval(n_points)
-        elif interval == 'mhmc':
-            distances, CLs, _ = tmg.mhmc(n_points, step, burn_steps, thinning,
-                                         states_physical=states_physical,
-                                         states_est_method=states_est_method_boot,
-                                         states_init=states_init)
-        elif interval == 'boot':
-            distances, CLs = tmg.bootstrap(n_points, method_boot, cptp=cptp, n_iter=n_iter, tol=tol,
-                                           states_physical=states_physical,
-                                           states_est_method=states_est_method_boot,
-                                           states_init=states_init)
+        elif interval == "mhmc":
+            distances, CLs, _ = tmg.mhmc(
+                n_points,
+                step,
+                burn_steps,
+                thinning,
+                states_physical=states_physical,
+                states_est_method=states_est_method_boot,
+                states_init=states_init,
+            )
+        elif interval == "boot":
+            distances, CLs = tmg.bootstrap(
+                n_points,
+                method_boot,
+                cptp=cptp,
+                n_iter=n_iter,
+                tol=tol,
+                states_physical=states_physical,
+                states_est_method=states_est_method_boot,
+                states_init=states_init,
+            )
         else:
-            raise ValueError('Incorrect value for argument `interval`.')
+            raise ValueError("Incorrect value for argument `interval`.")
         indices_falling_into_CL = np.where(delta > distances)[0]
         if len(indices_falling_into_CL) == 0:
             results[i] = 0

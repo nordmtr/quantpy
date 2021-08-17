@@ -1,7 +1,7 @@
-import numpy as np
-import numpy.linalg as la
 import random
 
+import numpy as np
+import numpy.linalg as la
 from numba import njit
 
 
@@ -15,19 +15,25 @@ def compute_polytope_volume(polytope):
     dim = polytope.A.shape[1]
     n_points = int(5000 * 1.5 ** dim)
     l_b, u_b = polytope.bounding_box
-    x = (np.tile(l_b, (1, n_points))
-         + np.random.rand(dim, n_points)
-         * np.tile(u_b - l_b, (1, n_points)))
-    aux = (np.dot(polytope.A, x)
-           - np.tile(np.array([polytope.b]).T, (1, n_points)))
+    x = np.tile(l_b, (1, n_points)) + np.random.rand(dim, n_points) * np.tile(
+        u_b - l_b, (1, n_points)
+    )
+    aux = np.dot(polytope.A, x) - np.tile(np.array([polytope.b]).T, (1, n_points))
     aux = np.nonzero(np.all(aux < 0, 0))[0].shape[0]
     vol = np.prod(u_b - l_b) * aux / n_points
     return vol
 
 
 @njit
-def find_max_distance_to_polytope(A, b, target_point_bloch, start_point_bloch, n_points=500,
-                                  discard_closer=False, hit_and_run=True):
+def find_max_distance_to_polytope(
+    A,
+    b,
+    target_point_bloch,
+    start_point_bloch,
+    n_points=500,
+    discard_closer=False,
+    hit_and_run=True,
+):
     """Compute the distance between the target point and the farthest point in the polytope
     using hit and run algorithm. Polytope is defined by H-representation: Ax <= b.
 
@@ -63,8 +69,7 @@ def find_max_distance_to_polytope(A, b, target_point_bloch, start_point_bloch, n
         direction = np.random.rand(dim) * 2 - 1
 
         # discard directions pointing towards the target point
-        while (discard_closer and
-               np.dot(direction, start_point_bloch - target_point_bloch) <= 0):
+        while discard_closer and np.dot(direction, start_point_bloch - target_point_bloch) <= 0:
             direction = np.random.rand(dim) * 2 - 1
         direction /= la.norm(direction)
         farthest_point_bloch = find_farthest_polytope_point(A, b, start_point_bloch, direction, EPS)

@@ -1,12 +1,12 @@
 import sys
-import numpy as np
-
 from copy import deepcopy
 
+import numpy as np
+
 from .base_quantum import BaseQuantum
-from .operator import _choi_to_kraus, Z, Operator
-from .routines import generate_single_entries, kron
+from .operator import Operator, Z, _choi_to_kraus
 from .qobj import Qobj, fully_mixed
+from .routines import generate_single_entries, kron
 
 
 class Channel(BaseQuantum):
@@ -53,6 +53,7 @@ class Channel(BaseQuantum):
     transform()
         Apply this channel to a quantum state
     """
+
     def __init__(self, data, n_qubits=None):
         self._types = set()
         if isinstance(data, self.__class__):
@@ -61,70 +62,71 @@ class Channel(BaseQuantum):
             self._choi = None
             self._kraus = None
             self._func = data
-            self._types.add('func')
+            self._types.add("func")
             if n_qubits is None:
-                raise ValueError('`n_qubits` argument is compulsory when using init with function')
+                raise ValueError("`n_qubits` argument is compulsory when using init with function")
             self.n_qubits = n_qubits
         elif isinstance(data, np.ndarray) or isinstance(data, Qobj):
             self._choi = Qobj(data)
             self._func = None
             self._kraus = None
-            self._types.add('choi')
+            self._types.add("choi")
             self.n_qubits = int(self._choi.n_qubits / 2)
         elif isinstance(data, list):
             self._choi = None
             self._func = None
             self._kraus = data
-            self._types.add('kraus')
+            self._types.add("kraus")
             self.n_qubits = data[0].n_qubits
         else:
-            raise ValueError('Invalid data format')
+            raise ValueError("Invalid data format")
 
     def set_func(self, data, n_qubits):
         """Set a new transformation function that defines the channel"""
-        self._types.discard('choi')
-        self._types.discard('kraus')
+        self._types.discard("choi")
+        self._types.discard("kraus")
         self._func = data
         self.n_qubits = n_qubits
-        self._types.add('func')
+        self._types.add("func")
 
     @property
     def choi(self):
         """Choi matrix of the channel"""
-        if 'choi' not in self._types:
-            self._choi = Qobj(np.zeros((4 ** self.n_qubits, 4 ** self.n_qubits),
-                                       dtype=np.complex128))
+        if "choi" not in self._types:
+            self._choi = Qobj(
+                np.zeros((4 ** self.n_qubits, 4 ** self.n_qubits), dtype=np.complex128)
+            )
             for single_entry in generate_single_entries(2 ** self.n_qubits):
                 self._choi += kron(Qobj(single_entry), self.transform(single_entry))
-            self._types.add('choi')
+            self._types.add("choi")
         return self._choi
 
     @choi.setter
     def choi(self, data):
-        self._types.discard('func')
-        self._types.discard('kraus')
+        self._types.discard("func")
+        self._types.discard("kraus")
         if not isinstance(data, Qobj):
             data = Qobj(data)
         elif not isinstance(data, np.ndarray):
-            raise ValueError('Invalid data format')
+            raise ValueError("Invalid data format")
         self._choi = data
         self.n_qubits = int(np.log2(data.shape[0]) / 2)
-        self._types.add('choi')
+        self._types.add("choi")
 
     @property
     def kraus(self):
         """Kraus representation of the channel"""
-        if 'kraus' not in self._types:
+        if "kraus" not in self._types:
             self._kraus = _choi_to_kraus(self.choi)
-            self._types.add('kraus')
+            self._types.add("kraus")
         return self._kraus
 
     @kraus.setter
     def kraus(self, data):
-        self._types.discard('func')
-        self._types.discard('choi')
+        self._types.discard("func")
+        self._types.discard("choi")
         if not isinstance(data, list):
-            raise ValueError('Invalid data format')
+            raise ValueError("Invalid data format")
         self._kraus = data
         self.n_qubits = data[0].n_qubits
 
@@ -132,14 +134,15 @@ class Channel(BaseQuantum):
         """Apply this channel to the quantum state"""
         if not isinstance(state, Qobj):
             state = Qobj(state)
-        if 'kraus' in self._types:
+        if "kraus" in self._types:
             output_state = np.sum([oper.transform(state) for oper in self.kraus])
-        elif 'func' in self._types:
+        elif "func" in self._types:
             output_state = self._func(state)
         else:  # compute output state using Choi matrix
             common_state = kron(state.T, Qobj(np.eye(2 ** self.n_qubits)))
             output_state = (common_state @ self.choi).ptrace(
-                list(range(self.n_qubits, 2 * self.n_qubits)))
+                list(range(self.n_qubits, 2 * self.n_qubits))
+            )
         return output_state
 
     def is_cptp(self, atol=1e-5, verbose=True):
@@ -152,9 +155,9 @@ class Channel(BaseQuantum):
         if tp_flag and cp_flag:
             return True
         if not tp_flag and verbose:
-            print('Not trace-preserving', file=sys.stderr)
+            print("Not trace-preserving", file=sys.stderr)
         if not cp_flag and verbose:
-            print('Not completely positive', file=sys.stderr)
+            print("Not completely positive", file=sys.stderr)
         return False
 
     @property
@@ -172,10 +175,10 @@ class Channel(BaseQuantum):
         return self.__class__(self.choi.conj())
 
     def __repr__(self):
-        return 'Quantum channel with Choi matrix\n' + repr(self.choi.matrix)
+        return "Quantum channel with Choi matrix\n" + repr(self.choi.matrix)
 
     def _repr_latex_(self):
-        return r'Choi matrix: ' + Qobj(self.choi.matrix)._repr_latex_()
+        return r"Choi matrix: " + Qobj(self.choi.matrix)._repr_latex_()
 
     def __eq__(self, other):
         return np.array_equal(self.choi.matrix, other.choi.matrix)
@@ -196,13 +199,13 @@ class Channel(BaseQuantum):
         if isinstance(other, (int, float, complex)):
             return self.__class__(self.choi * other)
         else:
-            raise ValueError('Only multiplication by a scalar is allowed')
+            raise ValueError("Only multiplication by a scalar is allowed")
 
     def __truediv__(self, other):
         if isinstance(other, (int, float, complex)):
             return self.__class__(self.choi / other)
         else:
-            raise ValueError('Only division by a scalar is allowed')
+            raise ValueError("Only division by a scalar is allowed")
 
     def __iadd__(self, other):
         self.choi = self.choi + other.choi
@@ -217,14 +220,14 @@ class Channel(BaseQuantum):
             self.choi = self.choi * other
             return self
         else:
-            raise ValueError('Only multiplication by a scalar is supported')
+            raise ValueError("Only multiplication by a scalar is supported")
 
     def __idiv__(self, other):
         if type(other) in (int, float, complex):
             self.choi = self.choi / other
             return self
         else:
-            raise ValueError('Only division by a scalar is supported')
+            raise ValueError("Only division by a scalar is supported")
 
     def __rmul__(self, other):
         return self.__mul__(other)
