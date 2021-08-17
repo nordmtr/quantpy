@@ -2,13 +2,11 @@ import itertools as it
 
 import numpy as np
 import scipy.linalg as la
-import scipy.stats as sts
 
 from ..basis import Basis
 from ..channel import Channel
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..measurements import generate_measurement_matrix
-from ..mhmc import MHMC
 from ..qobj import Qobj, fully_mixed
 from ..routines import (
     _left_inv,
@@ -19,7 +17,6 @@ from ..routines import (
     generate_single_entries,
     kron,
 )
-from ..stats import l2_mean, l2_variance
 from .state import StateTomograph
 
 

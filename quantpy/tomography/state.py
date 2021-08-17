@@ -1,21 +1,11 @@
-import math
-
 import numpy as np
-import pypoman
 import scipy.linalg as la
-import scipy.stats as sts
 from scipy.optimize import minimize
-from tqdm.notebook import tqdm
-
-import polytope as pc
 
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..measurements import generate_measurement_matrix
-from ..mhmc import MHMC, normalized_update
-from ..polytope import compute_polytope_volume, find_max_distance_to_polytope
 from ..qobj import Qobj, fully_mixed
 from ..routines import _left_inv, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix
-from ..stats import l2_mean, l2_variance
 
 
 class StateTomograph:

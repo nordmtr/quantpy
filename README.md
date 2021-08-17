@@ -104,4 +104,4 @@ Moreover, you can calculate confidence intervals for these reconstructed states 
 
 ### Quantum process tomography
 
-You can likewise perform quantum tomography of channels, as well as build confidence intervals by choosing a set of states, transforming them with channel and performing tomography on these output states. 
+You can likewise perform quantum tomography of channels, as well as build confidence intervals by choosing a set of states, transforming them with channel and performing tomography on these output states.

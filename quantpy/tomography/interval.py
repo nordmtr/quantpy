@@ -63,7 +63,6 @@ class ConfidenceInterval(ABC):
     @abstractmethod
     def setup(self):
         """Configure confidence intervals based on several points and interpolation."""
-        pass
 
 
 class MomentInterval(ConfidenceInterval):
