@@ -235,7 +235,7 @@ class Channel(BaseQuantum):
 
 def depolarizing(p=1, n_qubits=1):
     """Depolarizing channel with probability `p`
-    rho -> p * Id / (2^n_qubits) + (1-p) * rho
+    rho -> p * Id / (dim) + (1-p) * rho
     """
     return Channel(lambda rho: p * rho.trace() * fully_mixed(n_qubits) + (1 - p) * rho, n_qubits)
 

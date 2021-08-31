@@ -122,14 +122,23 @@ class StateTomograph:
                 )
                 / (np.sum(self.n_measurements) + np.sum(n_measurements))
             )
-            self.results = np.hstack((self.results, results))
+            self._results = np.hstack((self._results, results))
             self.n_measurements = np.hstack((self.n_measurements, n_measurements))
             self.raw_results = np.vstack((self.raw_results, raw_results))
         else:
             self.povm_matrix = povm_matrix
             self.raw_results = np.array(raw_results)
-            self.results = results
+            self._results = results
             self.n_measurements = np.array(n_measurements)
+
+    @property
+    def results(self):
+        return self._results
+
+    @results.setter
+    def results(self, data):
+        self._results = data
+        self.raw_results = data.reshape(self.povm_matrix.shape[:-1])
 
     def point_estimate(self, method="lin", physical=True, init="lin", max_iter=100, tol=1e-3):
         """Reconstruct a density matrix from the data obtained in the experiment
@@ -185,7 +194,7 @@ class StateTomograph:
 
     def _point_estimate_lin(self, physical):
         """Point estimate based on linear inversion algorithm"""
-        frequencies = self.results / self.results.sum()
+        frequencies = self._results / self._results.sum()
         povm_matrix = np.reshape(
             self.povm_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
             (-1, self.povm_matrix.shape[-1]),
@@ -219,7 +228,8 @@ class StateTomograph:
             (-1, self.povm_matrix.shape[-1]),
         )
         probas = povm_matrix @ rho.bloch * (2 ** self.state.n_qubits)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS))
+        frequencies = self._results / sum(self.n_measurements)
+        log_likelihood = np.sum(frequencies * np.log(probas + EPS))
         return -log_likelihood
 
     def _point_estimate_mle_chol_constr(self, init, max_iter, tol):
@@ -245,18 +255,6 @@ class StateTomograph:
         )
         matrix = _real_tril_vec_to_matrix(opt_res.x)
         return Qobj(matrix / np.trace(matrix))
-
-    def _nll_constr(self, tril_vec):
-        """Negative log-likelihood for constrained MLE with Cholesky parametrization"""
-        EPS = 1e-10
-        rho = Qobj(_real_tril_vec_to_matrix(tril_vec))
-        povm_matrix = np.reshape(
-            self.povm_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
-            (-1, self.povm_matrix.shape[-1]),
-        )
-        probas = povm_matrix @ rho.bloch * (2 ** self.state.n_qubits)
-        log_likelihood = np.sum(self.results * np.log(probas + EPS))
-        return -log_likelihood
 
 
 def _is_positive(bloch_vec):  # works only for 1-qubit systems !!
