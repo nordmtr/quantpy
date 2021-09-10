@@ -207,7 +207,8 @@ class ProcessTomograph:
             return self._point_estimate_pgdb(n_iter=n_iter, tol=tol)
         elif method == "states":
             return self._point_estimate_states(
-                cptp=cptp, method=states_est_method, physical=states_physical, init=states_init
+                cptp=cptp, method=states_est_method, physical=states_physical, init=states_init,
+                n_iter=n_iter, tol=tol
             )
         else:
             raise ValueError("Incorrect value for argument `method`")
@@ -308,8 +309,9 @@ class ProcessTomograph:
         log_likelihood = np.sum(self._unnorm_results * np.log(probas + EPS))
         return -log_likelihood
 
-    def _point_estimate_states(self, cptp, method, physical, init):
-        output_states = [tmg.point_estimate(method, physical, init) for tmg in self.tomographs]
+    def _point_estimate_states(self, cptp, method, physical, init, n_iter, tol):
+        output_states = [tmg.point_estimate(method, physical, init, n_iter, tol)
+                         for tmg in self.tomographs]
         output_basis = Basis(output_states)
         choi_matrix = Qobj(np.zeros((output_basis.dim, output_basis.dim)))
         for decomposed_single_entry in self._decomposed_single_entries:
