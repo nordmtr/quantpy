@@ -15,6 +15,7 @@ matplotlib = "^3.4.3"
 torch = "^1.9.0"
 polytope = "^0.2.3"
 einops = "^0.3.0"
+cvxopt = "^1.2.6"
 
 [tool.poetry.dev-dependencies]
 jupyter = "^1.0.0"
