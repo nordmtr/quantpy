@@ -6,7 +6,7 @@ A framework for quantum computations and quantum tomography simulations. Support
 
 To install the package you need to clone this repository to your computer and install it using poetry.
 ```bash
-git clone https://github.com/esthete88/quantpy.git
+git clone https://github.com/nordmtr/quantpy.git
 cd quantpy
 poetry install
 ```
