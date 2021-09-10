@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 
 import numpy as np
-import pypoman
 import scipy.stats as sts
 from scipy.interpolate import interp1d
 
@@ -12,7 +11,6 @@ import polytope as pc
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..mhmc import MHMC, normalized_update
 from ..polytope import compute_polytope_volume, find_max_distance_to_polytope
-from ..qobj import Qobj
 from ..routines import (
     _left_inv,
     _mat2vec,
@@ -21,7 +19,6 @@ from ..routines import (
     _vec2mat,
 )
 from ..stats import l2_mean, l2_variance
-from .state import _make_feasible
 
 
 class ConfidenceInterval(ABC):
@@ -262,16 +259,7 @@ class WangInterval(ConfidenceInterval):
                     np.clip(np.hstack(frequencies) + delta, self.EPS, 1 - self.EPS)
                     - povm_matrix[:, 0]
                 )
-                if self.method == "exact":
-                    vertices = pypoman.compute_polytope_vertices(A, b)
-                    vertex_states = [_make_feasible(Qobj(vertex)) for vertex in vertices]
-                    if vertices:
-                        radius = max(
-                            [self.tmg.dst(vertex_state, rho) for vertex_state in vertex_states]
-                        )
-                    else:
-                        radius = 0
-                elif self.method == "bbox":
+                if self.method == "bbox":
                     lb, ub = pc.Polytope(A, b).bounding_box
                     volume = np.prod(ub - lb)
                     radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (

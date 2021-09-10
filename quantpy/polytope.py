@@ -2,7 +2,6 @@ import random
 
 import numpy as np
 import numpy.linalg as la
-from numba import njit
 
 
 def compute_polytope_volume(polytope):
@@ -24,7 +23,6 @@ def compute_polytope_volume(polytope):
     return vol
 
 
-@njit
 def find_max_distance_to_polytope(
     A,
     b,
@@ -82,7 +80,6 @@ def find_max_distance_to_polytope(
     return max_dist * np.sqrt(np.sqrt(dim) / 2)
 
 
-@njit
 def find_farthest_polytope_point(A, b, start_point, direction, tol=1e-15, init_alpha=1):
     """Find the farthest point in the polytope in the selected direction.
     Polytope is defined by H-representation: Ax <= b.
