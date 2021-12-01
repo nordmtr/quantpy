@@ -1,9 +1,9 @@
 import math
 from abc import ABC, abstractmethod
+from einops import rearrange
 from enum import Enum, auto
 
 import numpy as np
-import pypoman
 import scipy.stats as sts
 from scipy.interpolate import interp1d
 
@@ -12,7 +12,6 @@ import polytope as pc
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..mhmc import MHMC, normalized_update
 from ..polytope import compute_polytope_volume, find_max_distance_to_polytope
-from ..qobj import Qobj
 from ..routines import (
     _left_inv,
     _mat2vec,
@@ -21,7 +20,6 @@ from ..routines import (
     _vec2mat,
 )
 from ..stats import l2_mean, l2_variance
-from .state import _make_feasible
 
 
 class ConfidenceInterval(ABC):
@@ -83,69 +81,65 @@ class MomentInterval(ConfidenceInterval):
 
     def setup(self):
         if self.mode == Mode.STATE:
+            dim = 2 ** self.tmg.state.n_qubits
             long_n_measurements = self.tmg.n_measurements.astype(object)
             measurement_ratios = long_n_measurements / long_n_measurements.sum()
             frequencies = self.tmg.raw_results / self.tmg.n_measurements[:, None]
-        else:
-            if not hasattr(self, "_lifp_oper_inv"):
-                _ = self.tmg.point_estimate("lifp")
-            n_measurements = np.hstack([tmg.n_measurements for tmg in self.tmg.tomographs])
-            long_n_measurements = n_measurements.astype(object)
-            measurement_ratios = (
-                long_n_measurements / long_n_measurements.sum() * len(self.tmg.tomographs)
-            )
-            raw_results = np.vstack([tmg.raw_results for tmg in self.tmg.tomographs])
-            frequencies = raw_results / n_measurements[:, None]
-        means = l2_mean(frequencies, long_n_measurements)
-        mean = np.sum(means * measurement_ratios ** 2)
-        variances = l2_variance(frequencies, long_n_measurements)
-        variance = np.sum(variances * measurement_ratios ** 4)
-        if self.distr_type == "norm":
-            std = np.sqrt(variance)
-            a = -mean / std
-            b = (1 - mean) / std
-            standard_norm = sts.norm(loc=0, scale=1)
-            z = 1 - standard_norm.cdf(a)
-            pdf_a = standard_norm.pdf(a)
-            new_std = std / np.sqrt(1 + a * pdf_a / z - (pdf_a / z) ** 2)
-            new_mean = mean - new_std * pdf_a / z
-            distr = sts.truncnorm(loc=new_mean, scale=new_std, a=a, b=b)
-        elif self.distr_type == "gamma":
-            scale = variance / mean
-            shape = mean / scale
-            distr = sts.gamma(a=shape, scale=scale)
-        else:
-            raise NotImplementedError(f"Unsupported distribution type {self.distr_type}")
-        conf_levels = np.linspace(0.001, self.max_confidence, self.n_points)
-        if self.mode == Mode.STATE:
-            dim = 2 ** self.tmg.state.n_qubits
-            if self.tmg.dst == hs_dst:
-                alpha = np.sqrt(dim / 2)
-            elif self.tmg.dst == trace_dst:
-                alpha = dim / 2
-            else:
-                raise NotImplementedError()
             povm_matrix = np.reshape(
                 self.tmg.povm_matrix
                 * self.tmg.n_measurements[:, None, None]
                 / np.sum(self.tmg.n_measurements),
                 (-1, self.tmg.povm_matrix.shape[-1]),
-            )
-            A = _left_inv(povm_matrix) / dim
-            dist = np.sqrt(distr.ppf(conf_levels)) * alpha * np.linalg.norm(A, ord=2)
+            ) * dim
+            A = rearrange(_left_inv(povm_matrix), 'd (m p) -> m d p', m=len(long_n_measurements))
         else:
-            dim = 2 ** self.tmg.channel.n_qubits
-            if self.tmg.dst == hs_dst:
-                alpha = 1 / np.sqrt(2)
-            elif self.tmg.dst == trace_dst:
-                alpha = dim / 2
-            else:
-                raise NotImplementedError()
-            dist = (
-                np.sqrt(distr.ppf(conf_levels))
-                * alpha
-                * np.linalg.norm(self.tmg._lifp_oper_inv, ord=2)
-            )
+            dim = 4 ** self.tmg.channel.n_qubits
+            povm_matrix = self.tmg.tomographs[0].povm_matrix
+            n_measurements = self.tmg.tomographs[0].n_measurements
+            meas_matrix = np.reshape(
+                povm_matrix
+                * n_measurements[:, None, None]
+                / np.sum(n_measurements),
+                (-1, povm_matrix.shape[-1]),
+            ) * povm_matrix.shape[0]
+            states_matrix = np.asarray([rho.T.bloch for rho in self.tmg.input_basis.elements])
+            channel_matrix = np.einsum("i a, j b -> i j a b", states_matrix, meas_matrix) * dim
+            channel_matrix = rearrange(channel_matrix, "i j a b -> (i j) (a b)")
+            n_measurements = np.hstack([tmg.n_measurements for tmg in self.tmg.tomographs])
+            long_n_measurements = n_measurements.astype(object)
+            measurement_ratios = np.ones_like(long_n_measurements)
+            raw_results = np.vstack([tmg.raw_results for tmg in self.tmg.tomographs])
+            frequencies = raw_results / n_measurements[:, None]
+            A = rearrange(_left_inv(channel_matrix), 'd (m p) -> m d p', m=len(long_n_measurements))
+        mean = np.real_if_close(sum([
+            l2_mean(f, n, A_block) * r ** 2
+            for f, n, A_block, r in zip(frequencies, long_n_measurements, A, measurement_ratios)
+        ]))
+        variance = np.real_if_close(sum([
+            l2_variance(f, n, A_block) * r ** 4
+            for f, n, A_block, r in zip(frequencies, long_n_measurements, A, measurement_ratios)
+        ]))
+        if self.distr_type == "norm":
+            std = np.sqrt(variance)
+            distr = sts.norm(loc=mean, scale=std)
+        elif self.distr_type == "gamma":
+            scale = variance / mean
+            shape = mean / scale
+            distr = sts.gamma(a=shape, scale=scale)
+        elif self.distr_type == "exp":
+            distr = sts.expon(scale=mean)
+        else:
+            raise NotImplementedError(f"Unsupported distribution type {self.distr_type}")
+        conf_levels = np.linspace(0.001, self.max_confidence, self.n_points)
+
+        if self.tmg.dst == hs_dst:
+            alpha = np.sqrt(dim / 2)
+        elif self.tmg.dst == trace_dst:
+            alpha = dim / 2
+        else:
+            raise NotImplementedError()
+
+        dist = np.sqrt(distr.ppf(conf_levels)) * alpha
         self.cl_to_dist = interp1d(conf_levels, dist)
 
 
@@ -262,16 +256,7 @@ class WangInterval(ConfidenceInterval):
                     np.clip(np.hstack(frequencies) + delta, self.EPS, 1 - self.EPS)
                     - povm_matrix[:, 0]
                 )
-                if self.method == "exact":
-                    vertices = pypoman.compute_polytope_vertices(A, b)
-                    vertex_states = [_make_feasible(Qobj(vertex)) for vertex in vertices]
-                    if vertices:
-                        radius = max(
-                            [self.tmg.dst(vertex_state, rho) for vertex_state in vertex_states]
-                        )
-                    else:
-                        radius = 0
-                elif self.method == "bbox":
+                if self.method == "bbox":
                     lb, ub = pc.Polytope(A, b).bounding_box
                     volume = np.prod(ub - lb)
                     radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (

@@ -99,7 +99,7 @@ class StateTomograph:
         povm_matrix = generate_measurement_matrix(povm, self.state.n_qubits)
         number_of_povms = povm_matrix.shape[0]
 
-        if isinstance(n_measurements, int):
+        if np.issubdtype(type(n_measurements), np.integer):
             n_measurements = np.ones(number_of_povms) * n_measurements
         elif len(n_measurements) != number_of_povms:
             raise ValueError("Wrong length for argument `n_measurements`")

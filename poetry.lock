@@ -1028,14 +1028,6 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
-name = "pycddlib"
-version = "2.1.4"
-description = "pycddlib is a Python wrapper for Komei Fukuda's cddlib."
-category = "main"
-optional = false
-python-versions = ">=3.6"
-
-[[package]]
 name = "pycodestyle"
 version = "2.7.0"
 description = "Python style guide checker"
@@ -1074,18 +1066,6 @@ description = "Python parsing module"
 category = "main"
 optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
-
-[[package]]
-name = "pypoman"
-version = "0.5.4"
-description = "Polyhedron and polytope manipulation in Python"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-cvxopt = "*"
-pycddlib = "*"
 
 [[package]]
 name = "pyrsistent"
@@ -1437,7 +1417,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7.1,<3.10"
-content-hash = "a369a494e3876a12e15bdad24fd1af24ea218d2a03563722213b94c67b5d64ab"
+content-hash = "552c1a5b2f0773dfb30b315c81efd755e31a651a4e258a226c09a689978dbe98"
 
 [metadata.files]
 appnope = [
@@ -2112,17 +2092,6 @@ py = [
     {file = "py-1.10.0-py2.py3-none-any.whl", hash = "sha256:3b80836aa6d1feeaa108e046da6423ab8f6ceda6468545ae8d02d9d58d18818a"},
     {file = "py-1.10.0.tar.gz", hash = "sha256:21b81bda15b66ef5e1a777a21c4dcd9c20ad3efd0b3f817e7a809035269e1bd3"},
 ]
-pycddlib = [
-    {file = "pycddlib-2.1.4-cp36-cp36m-win32.whl", hash = "sha256:0e9b521a7578eb9be4c176d413a36f04ef1d45f12863fa05238007b04a7b7f8b"},
-    {file = "pycddlib-2.1.4-cp36-cp36m-win_amd64.whl", hash = "sha256:22d9023d725c0be65f444fa1cd088f269129743b4aa665ef3b0c3e790258514f"},
-    {file = "pycddlib-2.1.4-cp37-cp37m-win32.whl", hash = "sha256:b421475075b846b5123cfe43facc0ecb0fbd6759fce5a9e23b7653a6c1f2c40a"},
-    {file = "pycddlib-2.1.4-cp37-cp37m-win_amd64.whl", hash = "sha256:da82f2c80276e464e1657f610946af829eabb93a363f6cba0506c83e207cda25"},
-    {file = "pycddlib-2.1.4-cp38-cp38-win32.whl", hash = "sha256:18e4f12c7adf8cf30ba6ef570e729c469d022186ac4eb80cc9b8b00eb0f0b8b4"},
-    {file = "pycddlib-2.1.4-cp38-cp38-win_amd64.whl", hash = "sha256:1d8790ec3e1c83c7d8bb2e0bf63171957a9aebacc2887fe201d1c5731a8a14cd"},
-    {file = "pycddlib-2.1.4-cp39-cp39-win32.whl", hash = "sha256:6d586bdd0d524357f77d3420e4a1e7745b2dd19c075aadda093e90d377893856"},
-    {file = "pycddlib-2.1.4-cp39-cp39-win_amd64.whl", hash = "sha256:90282ad245fa1d3562758972468357caf902aa649a20c581fde38fb2ee500dbb"},
-    {file = "pycddlib-2.1.4.tar.gz", hash = "sha256:5145e8be222aeb9ee34c0d5f3df36362add3499999134719adbd5d27fb393900"},
-]
 pycodestyle = [
     {file = "pycodestyle-2.7.0-py2.py3-none-any.whl", hash = "sha256:514f76d918fcc0b55c6680472f0a37970994e07bbb80725808c17089be302068"},
     {file = "pycodestyle-2.7.0.tar.gz", hash = "sha256:c389c1d06bf7904078ca03399a4816f974a1d590090fecea0c63ec26ebaf1cef"},
@@ -2142,9 +2111,6 @@ pygments = [
 pyparsing = [
     {file = "pyparsing-2.4.7-py2.py3-none-any.whl", hash = "sha256:ef9d7589ef3c200abe66653d3f1ab1033c3c419ae9b9bdb1240a85b024efc88b"},
     {file = "pyparsing-2.4.7.tar.gz", hash = "sha256:c203ec8783bf771a155b207279b9bccb8dea02d8f0c9e5f8ead507bc3246ecc1"},
-]
-pypoman = [
-    {file = "pypoman-0.5.4.tar.gz", hash = "sha256:52a649f7f5cb44d74e47688d8c5e943ddab9bce9f04b6f0676305b78c0ac1c66"},
 ]
 pyrsistent = [
     {file = "pyrsistent-0.18.0-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:f4c8cabb46ff8e5d61f56a037974228e978f26bfefce4f61a4b1ac0ba7a2ab72"},
