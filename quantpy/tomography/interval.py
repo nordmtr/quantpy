@@ -82,43 +82,24 @@ class MomentInterval(ConfidenceInterval):
     def setup(self):
         if self.mode == Mode.STATE:
             dim = 2 ** self.tmg.state.n_qubits
-            long_n_measurements = self.tmg.n_measurements.astype(object)
-            measurement_ratios = long_n_measurements / long_n_measurements.sum()
+            n_measurements = self.tmg.n_measurements
             frequencies = self.tmg.raw_results / self.tmg.n_measurements[:, None]
-            povm_matrix = np.reshape(
-                self.tmg.povm_matrix
-                * self.tmg.n_measurements[:, None, None]
-                / np.sum(self.tmg.n_measurements),
-                (-1, self.tmg.povm_matrix.shape[-1]),
-            ) * dim
-            A = rearrange(_left_inv(povm_matrix), 'd (m p) -> m d p', m=len(long_n_measurements))
+            # reshape, invert, reshape back
+            inv_matrix = _left_inv(rearrange(self.tmg.povm_matrix, 'm p d -> (m p) d')) / dim
+            inv_matrix = rearrange(inv_matrix, 'd (m p) -> d m p', m=frequencies.shape[0])
         else:
             dim = 4 ** self.tmg.channel.n_qubits
-            povm_matrix = self.tmg.tomographs[0].povm_matrix
             n_measurements = self.tmg.tomographs[0].n_measurements
-            meas_matrix = np.reshape(
-                povm_matrix
-                * n_measurements[:, None, None]
-                / np.sum(n_measurements),
-                (-1, povm_matrix.shape[-1]),
-            ) * povm_matrix.shape[0]
+            frequencies = np.vstack([tmg.raw_results / n_measurements[:, None] for tmg in self.tmg.tomographs])
+            povm_matrix = rearrange(self.tmg.tomographs[0].povm_matrix, 'm p d -> (m p) d')
             states_matrix = np.asarray([rho.T.bloch for rho in self.tmg.input_basis.elements])
-            channel_matrix = np.einsum("i a, j b -> i j a b", states_matrix, meas_matrix) * dim
-            channel_matrix = rearrange(channel_matrix, "i j a b -> (i j) (a b)")
-            n_measurements = np.hstack([tmg.n_measurements for tmg in self.tmg.tomographs])
-            long_n_measurements = n_measurements.astype(object)
-            measurement_ratios = np.ones_like(long_n_measurements)
-            raw_results = np.vstack([tmg.raw_results for tmg in self.tmg.tomographs])
-            frequencies = raw_results / n_measurements[:, None]
-            A = rearrange(_left_inv(channel_matrix), 'd (m p) -> m d p', m=len(long_n_measurements))
-        mean = np.real_if_close(sum([
-            l2_mean(f, n, A_block) * r ** 2
-            for f, n, A_block, r in zip(frequencies, long_n_measurements, A, measurement_ratios)
-        ]))
-        variance = np.real_if_close(sum([
-            l2_variance(f, n, A_block) * r ** 4
-            for f, n, A_block, r in zip(frequencies, long_n_measurements, A, measurement_ratios)
-        ]))
+            channel_matrix = np.einsum("s d, p i -> s p d i", states_matrix, povm_matrix)
+            # reshape, invert, reshape back
+            inv_matrix = _left_inv(rearrange(channel_matrix, 's p d i -> (s p) (d i)')) / dim
+            inv_matrix = rearrange(inv_matrix, 'd (m p) -> d m p', m=frequencies.shape[0])
+        weights_tensor = np.einsum('aij,akl->ijkl', inv_matrix, inv_matrix)
+        mean = l2_mean(frequencies, n_measurements[0], weights_tensor)
+        variance = l2_variance(frequencies, n_measurements[0], weights_tensor)
         if self.distr_type == "norm":
             std = np.sqrt(variance)
             distr = sts.norm(loc=mean, scale=std)
