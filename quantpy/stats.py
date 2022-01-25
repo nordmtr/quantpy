@@ -1,51 +1,57 @@
 import numpy as np
 
+from einops import rearrange
 
-def l2_mean(freq, n_trials, inv_povm_matrix=None):
+
+def l2_mean(freq, n_trials, weights=None):
     """Return the mean of the squared l2-norm of a vector (f-p), where `f` is an MLE estimate
     of the `p` parameter of the multinomial distribution with `n_trials`."""
-    if inv_povm_matrix is None:
-        weights = np.eye(freq.shape[-1])
-    else:
-        weights = inv_povm_matrix.T.conj() @ inv_povm_matrix
-    # print((
-    #     np.einsum("ii,i->", weights, freq)
-    #     - np.einsum("ij,i,j->", weights, freq, freq)
-    # ) / n_trials)
+    if weights is None:
+        weights = np.tensordot(np.eye(freq.shape[0]), np.eye(freq.shape[1]), axes=0)
+        weights = rearrange(weights, 'a b c d -> a c b d')
     return (
-        np.einsum("ii,i->", weights, freq)
-        - np.einsum("ij,i,j->", weights, freq, freq)
+        np.einsum("aiai,ai->", weights, freq)
+        - np.einsum("aiaj,ai,aj->", weights, freq, freq)
     ) / n_trials
 
 
-def l2_variance(freq, n_trials, inv_povm_matrix=None):
+def l2_variance(freq, n_trials, weights=None):
     """Return the variance of the squared l2-norm of a vector (f-p), where `f` is an MLE estimate
     of the `p` parameter of the multinomial distribution with `n_trials`."""
-    if inv_povm_matrix is None:
-        weights = np.eye(freq.shape[-1])
-    else:
-        weights = inv_povm_matrix.T.conj() @ inv_povm_matrix
+    if weights is None:
+        weights = np.tensordot(np.eye(freq.shape[0]), np.eye(freq.shape[1]), axes=0)
+        weights = rearrange(weights, 'a b c d -> a c b d')
     return (
-        3 * np.einsum("ij,kl,i,j,k,l->", weights, weights, freq, freq, freq, freq)
+        # all freqs from one povm
+        # 3 * np.einsum("aiaj,akal,ai,aj,ak,al->", weights, weights, freq, freq, freq, freq)
+        #
+        # - np.einsum("aiai,akal,ai,ak,al->", weights, weights, freq, freq, freq)  # i = j
+        # - np.einsum("aiaj,aial,ai,aj,al->", weights, weights, freq, freq, freq)
+        # - np.einsum("aiaj,akai,ai,aj,ak->", weights, weights, freq, freq, freq)
+        # - np.einsum("aiaj,ajal,ai,aj,al->", weights, weights, freq, freq, freq)
+        # - np.einsum("aiaj,akaj,ai,aj,ak->", weights, weights, freq, freq, freq)
+        # - np.einsum("aiaj,akak,ai,aj,ak->", weights, weights, freq, freq, freq)
+        #
+        # + np.einsum("aiai,akak,ai,ak->", weights, weights, freq, freq)  # i = j & k = l
+        # + np.einsum("aiaj,aiaj,ai,aj->", weights, weights, freq, freq)
+        # + np.einsum("aiaj,ajai,ai,aj->", weights, weights, freq, freq)
 
-        - np.einsum("ii,kl,i,k,l->", weights, weights, freq, freq, freq)  # i = j
-        - np.einsum("ij,il,i,j,l->", weights, weights, freq, freq, freq)
-        - np.einsum("ij,ki,i,j,k->", weights, weights, freq, freq, freq)
-        - np.einsum("ij,jl,i,j,l->", weights, weights, freq, freq, freq)
-        - np.einsum("ij,kj,i,j,k->", weights, weights, freq, freq, freq)
-        - np.einsum("ij,kk,i,j,k->", weights, weights, freq, freq, freq)
+        # freqs split 2/2 between povms
+        np.einsum("aiaj,bkbl,ai,aj,bk,bl->", weights, weights, freq, freq, freq, freq)
+        - np.einsum("aiaj,bkbk,ai,aj,bk->", weights, weights, freq, freq, freq)
+        - np.einsum("aiai,bkbl,ai,bk,bl->", weights, weights, freq, freq, freq)
+        + np.einsum("aiai,bkbk,ai,bk->", weights, weights, freq, freq)
 
-        # + np.einsum("ii,il,i,l->", weights, weights, freq, freq)  # i = j = k
-        # + np.einsum("ii,ki,i,k->", weights, weights, freq, freq)
-        # + np.einsum("ij,ii,i,j->", weights, weights, freq, freq)
-        # + np.einsum("ij,jj,i,j->", weights, weights, freq, freq)
+        + np.einsum("aibj,bkal,ai,bj,bk,al->", weights, weights, freq, freq, freq, freq)
+        - np.einsum("aibj,bjal,ai,bj,al->", weights, weights, freq, freq, freq)
+        - np.einsum("aibj,bkai,ai,bj,bk->", weights, weights, freq, freq, freq)
+        + np.einsum("aibj,bjai,ai,bj->", weights, weights, freq, freq)
 
-        + np.einsum("ii,kk,i,k->", weights, weights, freq, freq)  # i = j & k = l
-        + np.einsum("ij,ij,i,j->", weights, weights, freq, freq)
-        + np.einsum("ij,ji,i,j->", weights, weights, freq, freq)
-
-        # + np.einsum("ii,ii,i->", weights, weights, freq)  # i = j = k = l
-    ) / n_trials ** 2 - l2_mean(freq, n_trials, inv_povm_matrix) ** 2
+        + np.einsum("aibj,akbl,ai,bj,ak,bl->", weights, weights, freq, freq, freq, freq)
+        - np.einsum("aibj,akbj,ai,bj,ak->", weights, weights, freq, freq, freq)
+        - np.einsum("aibj,aibl,ai,bj,bl->", weights, weights, freq, freq, freq)
+        + np.einsum("aibj,aibj,ai,bj->", weights, weights, freq, freq)
+    ) / n_trials ** 2 - l2_mean(freq, n_trials, weights) ** 2
 
 
 def l2_first_moment(frequencies, n_trials):
