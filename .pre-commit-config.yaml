@@ -13,12 +13,12 @@ repos:
     hooks:
     -   id: isort
         name: isort
-        entry: isort
+        entry: isort --settings-file pyproject.toml .
         language: system
         pass_filenames: false
     -   id: black
         name: black
-        entry: black
+        entry: black .
         language: system
         pass_filenames: false
     -   id: autoflake

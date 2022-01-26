@@ -1,5 +1,4 @@
 import numpy as np
-
 from einops import rearrange
 
 
@@ -8,10 +7,9 @@ def l2_mean(freq, n_trials, weights=None):
     of the `p` parameter of the multinomial distribution with `n_trials`."""
     if weights is None:
         weights = np.tensordot(np.eye(freq.shape[0]), np.eye(freq.shape[1]), axes=0)
-        weights = rearrange(weights, 'a b c d -> a c b d')
+        weights = rearrange(weights, "a b c d -> a c b d")
     return (
-        np.einsum("aiai,ai->", weights, freq)
-        - np.einsum("aiaj,ai,aj->", weights, freq, freq)
+        np.einsum("aiai,ai->", weights, freq) - np.einsum("aiaj,ai,aj->", weights, freq, freq)
     ) / n_trials
 
 
@@ -20,7 +18,7 @@ def l2_variance(freq, n_trials, weights=None):
     of the `p` parameter of the multinomial distribution with `n_trials`."""
     if weights is None:
         weights = np.tensordot(np.eye(freq.shape[0]), np.eye(freq.shape[1]), axes=0)
-        weights = rearrange(weights, 'a b c d -> a c b d')
+        weights = rearrange(weights, "a b c d -> a c b d")
     return (
         # all freqs from one povm
         # 3 * np.einsum("aiaj,akal,ai,aj,ak,al->", weights, weights, freq, freq, freq, freq)
@@ -35,18 +33,15 @@ def l2_variance(freq, n_trials, weights=None):
         # + np.einsum("aiai,akak,ai,ak->", weights, weights, freq, freq)  # i = j & k = l
         # + np.einsum("aiaj,aiaj,ai,aj->", weights, weights, freq, freq)
         # + np.einsum("aiaj,ajai,ai,aj->", weights, weights, freq, freq)
-
         # freqs split 2/2 between povms
         np.einsum("aiaj,bkbl,ai,aj,bk,bl->", weights, weights, freq, freq, freq, freq)
         - np.einsum("aiaj,bkbk,ai,aj,bk->", weights, weights, freq, freq, freq)
         - np.einsum("aiai,bkbl,ai,bk,bl->", weights, weights, freq, freq, freq)
         + np.einsum("aiai,bkbk,ai,bk->", weights, weights, freq, freq)
-
         + np.einsum("aibj,bkal,ai,bj,bk,al->", weights, weights, freq, freq, freq, freq)
         - np.einsum("aibj,bjal,ai,bj,al->", weights, weights, freq, freq, freq)
         - np.einsum("aibj,bkai,ai,bj,bk->", weights, weights, freq, freq, freq)
         + np.einsum("aibj,bjai,ai,bj->", weights, weights, freq, freq)
-
         + np.einsum("aibj,akbl,ai,bj,ak,bl->", weights, weights, freq, freq, freq, freq)
         - np.einsum("aibj,akbj,ai,bj,ak->", weights, weights, freq, freq, freq)
         - np.einsum("aibj,aibl,ai,bj,bl->", weights, weights, freq, freq, freq)

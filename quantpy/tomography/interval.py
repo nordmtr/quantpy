@@ -1,10 +1,10 @@
 import math
 from abc import ABC, abstractmethod
-from einops import rearrange
 from enum import Enum, auto
 
 import numpy as np
 import scipy.stats as sts
+from einops import rearrange
 from scipy.interpolate import interp1d
 
 import polytope as pc
@@ -85,19 +85,21 @@ class MomentInterval(ConfidenceInterval):
             n_measurements = self.tmg.n_measurements
             frequencies = self.tmg.raw_results / self.tmg.n_measurements[:, None]
             # reshape, invert, reshape back
-            inv_matrix = _left_inv(rearrange(self.tmg.povm_matrix, 'm p d -> (m p) d')) / dim
-            inv_matrix = rearrange(inv_matrix, 'd (m p) -> d m p', m=frequencies.shape[0])
+            inv_matrix = _left_inv(rearrange(self.tmg.povm_matrix, "m p d -> (m p) d")) / dim
+            inv_matrix = rearrange(inv_matrix, "d (m p) -> d m p", m=frequencies.shape[0])
         else:
             dim = 4 ** self.tmg.channel.n_qubits
             n_measurements = self.tmg.tomographs[0].n_measurements
-            frequencies = np.vstack([tmg.raw_results / n_measurements[:, None] for tmg in self.tmg.tomographs])
-            povm_matrix = rearrange(self.tmg.tomographs[0].povm_matrix, 'm p d -> (m p) d')
+            frequencies = np.vstack(
+                [tmg.raw_results / n_measurements[:, None] for tmg in self.tmg.tomographs]
+            )
+            povm_matrix = rearrange(self.tmg.tomographs[0].povm_matrix, "m p d -> (m p) d")
             states_matrix = np.asarray([rho.T.bloch for rho in self.tmg.input_basis.elements])
             channel_matrix = np.einsum("s d, p i -> s p d i", states_matrix, povm_matrix)
             # reshape, invert, reshape back
-            inv_matrix = _left_inv(rearrange(channel_matrix, 's p d i -> (s p) (d i)')) / dim
-            inv_matrix = rearrange(inv_matrix, 'd (m p) -> d m p', m=frequencies.shape[0])
-        weights_tensor = np.einsum('aij,akl->ijkl', inv_matrix, inv_matrix)
+            inv_matrix = _left_inv(rearrange(channel_matrix, "s p d i -> (s p) (d i)")) / dim
+            inv_matrix = rearrange(inv_matrix, "d (m p) -> d m p", m=frequencies.shape[0])
+        weights_tensor = np.einsum("aij,akl->ijkl", inv_matrix, inv_matrix)
         mean = l2_mean(frequencies, n_measurements[0], weights_tensor)
         variance = l2_variance(frequencies, n_measurements[0], weights_tensor)
         if self.distr_type == "norm":
