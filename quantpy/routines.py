@@ -47,9 +47,7 @@ def join_gates(gates):
 def _out_ptrace_oper(n_qubits):
     """Construct a partial trace operator over output space for a bipartite system"""
     identity = np.eye(2 ** n_qubits)
-    return np.sum(
-        [np.kron(identity, np.kron(k_vec, np.kron(identity, k_vec))) for k_vec in identity], axis=0
-    )
+    return np.sum([np.kron(identity, np.kron(k_vec, np.kron(identity, k_vec))) for k_vec in identity], axis=0)
 
 
 def _vec2mat(vector):
@@ -65,9 +63,7 @@ def _mat2vec(matrix):
 
 def _density(psi):
     """Construct a density matrix of a pure state"""
-    return np.outer(
-        np.asarray(psi, dtype=np.complex128).T, np.conj(np.asarray(psi, dtype=np.complex128))
-    )
+    return np.outer(np.asarray(psi, dtype=np.complex128).T, np.conj(np.asarray(psi, dtype=np.complex128)))
 
 
 def _left_inv(A):

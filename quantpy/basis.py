@@ -31,9 +31,7 @@ class Basis:
 
     def decompose(self, obj):
         """Return a decomposition of the obj"""
-        rhs = np.array(
-            [self.inner_product(element, obj) for element in self.elements], dtype=np.complex128
-        )
+        rhs = np.array([self.inner_product(element, obj) for element in self.elements], dtype=np.complex128)
         return np.conj(la.solve(self.gram, rhs))
 
     def compose(self, vector):

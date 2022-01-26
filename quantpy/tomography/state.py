@@ -181,13 +181,9 @@ class StateTomograph:
         if method == "lin":
             self.reconstructed_state = self._point_estimate_lin(physical=physical)
         elif method == "mle":
-            self.reconstructed_state = self._point_estimate_mle_chol(
-                init=init, max_iter=max_iter, tol=tol
-            )
+            self.reconstructed_state = self._point_estimate_mle_chol(init=init, max_iter=max_iter, tol=tol)
         elif method == "mle-constr":
-            self.reconstructed_state = self._point_estimate_mle_chol_constr(
-                init=init, max_iter=max_iter, tol=tol
-            )
+            self.reconstructed_state = self._point_estimate_mle_chol_constr(init=init, max_iter=max_iter, tol=tol)
         else:
             raise ValueError("Invalid value for argument `method`")
         return self.reconstructed_state

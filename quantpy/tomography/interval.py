@@ -12,13 +12,7 @@ import polytope as pc
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..mhmc import MHMC, normalized_update
 from ..polytope import compute_polytope_volume, find_max_distance_to_polytope
-from ..routines import (
-    _left_inv,
-    _mat2vec,
-    _matrix_to_real_tril_vec,
-    _real_tril_vec_to_matrix,
-    _vec2mat,
-)
+from ..routines import _left_inv, _mat2vec, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix, _vec2mat
 from ..stats import l2_mean, l2_variance
 
 
@@ -90,9 +84,7 @@ class MomentInterval(ConfidenceInterval):
         else:
             dim = 4 ** self.tmg.channel.n_qubits
             n_measurements = self.tmg.tomographs[0].n_measurements
-            frequencies = np.vstack(
-                [tmg.raw_results / n_measurements[:, None] for tmg in self.tmg.tomographs]
-            )
+            frequencies = np.vstack([tmg.raw_results / n_measurements[:, None] for tmg in self.tmg.tomographs])
             povm_matrix = rearrange(self.tmg.tomographs[0].povm_matrix, "m p d -> (m p) d")
             states_matrix = np.asarray([rho.T.bloch for rho in self.tmg.input_basis.elements])
             channel_matrix = np.einsum("s d, p i -> s p d i", states_matrix, povm_matrix)
@@ -156,8 +148,7 @@ class SugiyamaInterval(ConfidenceInterval):
         measurement_ratios = self.tmg.n_measurements.sum() / self.tmg.n_measurements
         c_alpha = (
             np.sum(
-                (np.max(inversed_povm, axis=-1) - np.min(inversed_povm, axis=-1)) ** 2
-                * measurement_ratios[None, :],
+                (np.max(inversed_povm, axis=-1) - np.min(inversed_povm, axis=-1)) ** 2 * measurement_ratios[None, :],
                 axis=-1,
             )
             + self.EPS
@@ -203,15 +194,11 @@ class WangInterval(ConfidenceInterval):
         dim = 2 ** self.tmg.state.n_qubits
         bloch_dim = dim ** 2 - 1
 
-        frequencies = np.clip(
-            self.tmg.raw_results / self.tmg.n_measurements[:, None], self.EPS, 1 - self.EPS
-        )
+        frequencies = np.clip(self.tmg.raw_results / self.tmg.n_measurements[:, None], self.EPS, 1 - self.EPS)
 
         povm_matrix = (
             np.reshape(
-                self.tmg.povm_matrix
-                * self.tmg.n_measurements[:, None, None]
-                / np.sum(self.tmg.n_measurements),
+                self.tmg.povm_matrix * self.tmg.n_measurements[:, None, None] / np.sum(self.tmg.n_measurements),
                 (-1, self.tmg.povm_matrix.shape[-1]),
             )
             * self.tmg.povm_matrix.shape[0]
@@ -222,11 +209,7 @@ class WangInterval(ConfidenceInterval):
         if self.method == "coarse":
             A_inv = _left_inv(A)
             prob_dim = povm_matrix.shape[0]
-            coef1 = (
-                np.linalg.norm(A_inv, ord=2)
-                * (self.tmg.povm_matrix.shape[1] - 1)
-                * np.sqrt(prob_dim)
-            )
+            coef1 = np.linalg.norm(A_inv, ord=2) * (self.tmg.povm_matrix.shape[1] - 1) * np.sqrt(prob_dim)
             coef2 = np.linalg.norm(A_inv, ord=2) ** 2 * prob_dim
             max_dist = max(max_delta * coef1, np.sqrt(max_delta * coef2))
             dist = np.linspace(0, max_dist, self.n_points)
@@ -235,21 +218,14 @@ class WangInterval(ConfidenceInterval):
             deltas = np.linspace(0, max_delta, self.n_points)
             dist = []
             for delta in deltas:
-                b = (
-                    np.clip(np.hstack(frequencies) + delta, self.EPS, 1 - self.EPS)
-                    - povm_matrix[:, 0]
-                )
+                b = np.clip(np.hstack(frequencies) + delta, self.EPS, 1 - self.EPS) - povm_matrix[:, 0]
                 if self.method == "bbox":
                     lb, ub = pc.Polytope(A, b).bounding_box
                     volume = np.prod(ub - lb)
-                    radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (
-                        1 / bloch_dim
-                    ) / math.sqrt(math.pi)
+                    radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim) / math.sqrt(math.pi)
                 elif self.method == "approx":
                     volume = compute_polytope_volume(pc.Polytope(A, b))
-                    radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (
-                        1 / bloch_dim
-                    ) / math.sqrt(math.pi)
+                    radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim) / math.sqrt(math.pi)
                 elif self.method == "hit_and_run":
                     rho_bloch = rho.bloch[1:]
                     radius = find_max_distance_to_polytope(A, b, rho_bloch, rho_bloch)
@@ -264,9 +240,9 @@ class WangInterval(ConfidenceInterval):
 
     def _count_confidence(self, delta, frequencies):
         freq_plus_delta = np.clip(frequencies + delta, self.EPS, 1 - self.EPS)
-        KL_divergence = frequencies * np.log(frequencies / freq_plus_delta) + (
-            1 - frequencies
-        ) * np.log((1 - frequencies) / (1 - freq_plus_delta))
+        KL_divergence = frequencies * np.log(frequencies / freq_plus_delta) + (1 - frequencies) * np.log(
+            (1 - frequencies) / (1 - freq_plus_delta)
+        )
         KL_divergence = np.where(freq_plus_delta < 1 - self.EPS, KL_divergence, np.inf)
         epsilons = np.exp(-self.tmg.n_measurements[:, None] * KL_divergence)
         epsilons = np.where(np.abs(frequencies - 1) < 2 * self.EPS, 0, epsilons)
@@ -385,10 +361,7 @@ class HolderInterval(ConfidenceInterval):
         if self.mode == Mode.STATE:
             raise NotImplementedError("Holder interval works only for process tomography")
         if self.kind == "moment":
-            self.intervals = [
-                MomentInterval(tmg, self.n_points, self.max_confidence)
-                for tmg in self.tmg.tomographs
-            ]
+            self.intervals = [MomentInterval(tmg, self.n_points, self.max_confidence) for tmg in self.tmg.tomographs]
         elif self.kind == "mhmc":
             self.intervals = [
                 MHMCStateInterval(tmg, self.n_points, self.step, self.burn_steps, self.thinning)
@@ -408,14 +381,10 @@ class HolderInterval(ConfidenceInterval):
                 for tmg in self.tmg.tomographs
             ]
         elif self.kind == "sugiyama":
-            self.intervals = [
-                SugiyamaInterval(tmg, self.n_points, self.max_confidence)
-                for tmg in self.tmg.tomographs
-            ]
+            self.intervals = [SugiyamaInterval(tmg, self.n_points, self.max_confidence) for tmg in self.tmg.tomographs]
         elif self.kind == "wang":
             self.intervals = [
-                WangInterval(tmg, self.n_points, self.wang_method, self.max_confidence)
-                for tmg in self.tmg.tomographs
+                WangInterval(tmg, self.n_points, self.wang_method, self.max_confidence) for tmg in self.tmg.tomographs
             ]
         else:
             raise ValueError("Incorrect value for argument `kind`.")
@@ -559,9 +528,7 @@ class BootstrapProcessInterval(ConfidenceInterval):
         dist = np.empty(self.n_points)
         boot_tmg = self.tmg.__class__(self.channel, self.tmg.input_states, self.tmg.dst)
         for i in range(self.n_points):
-            boot_tmg.experiment(
-                self.tmg.tomographs[0].n_measurements, povm=self.tmg.tomographs[0].povm_matrix
-            )
+            boot_tmg.experiment(self.tmg.tomographs[0].n_measurements, povm=self.tmg.tomographs[0].povm_matrix)
             estim_channel = boot_tmg.point_estimate(
                 method=self.method,
                 states_physical=self.states_physical,
@@ -642,15 +609,8 @@ class MHMCStateInterval(ConfidenceInterval):
                 symmetric=True,
                 x_init=x_init,
             )
-        samples, acceptance_rate = self.chain.sample(
-            self.n_points, self.thinning, verbose=self.verbose
-        )
-        dist = np.asarray(
-            [
-                self.tmg.dst(_real_tril_vec_to_matrix(tril_vec), self.state.matrix)
-                for tril_vec in samples
-            ]
-        )
+        samples, acceptance_rate = self.chain.sample(self.n_points, self.thinning, verbose=self.verbose)
+        dist = np.asarray([self.tmg.dst(_real_tril_vec_to_matrix(tril_vec), self.state.matrix) for tril_vec in samples])
         dist.sort()
         conf_levels = np.linspace(0, 1, len(dist))
         self.cl_to_dist = interp1d(conf_levels, dist)
@@ -738,12 +698,8 @@ class MHMCProcessInterval(ConfidenceInterval):
                 symmetric=True,
                 x_init=x_init,
             )
-        samples, acceptance_rate = self.chain.sample(
-            self.n_points, self.thinning, verbose=self.verbose
-        )
-        dist = np.asarray(
-            [self.tmg.dst(_vec2mat(choi_vec), self.channel.choi.matrix) for choi_vec in samples]
-        )
+        samples, acceptance_rate = self.chain.sample(self.n_points, self.thinning, verbose=self.verbose)
+        dist = np.asarray([self.tmg.dst(_vec2mat(choi_vec), self.channel.choi.matrix) for choi_vec in samples])
         dist.sort()
         conf_levels = np.linspace(0, 1, len(dist))
         if self.return_samples:

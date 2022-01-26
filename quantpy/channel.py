@@ -93,9 +93,7 @@ class Channel(BaseQuantum):
     def choi(self):
         """Choi matrix of the channel"""
         if "choi" not in self._types:
-            self._choi = Qobj(
-                np.zeros((4 ** self.n_qubits, 4 ** self.n_qubits), dtype=np.complex128)
-            )
+            self._choi = Qobj(np.zeros((4 ** self.n_qubits, 4 ** self.n_qubits), dtype=np.complex128))
             for single_entry in generate_single_entries(2 ** self.n_qubits):
                 self._choi += kron(Qobj(single_entry), self.transform(single_entry))
             self._types.add("choi")
@@ -140,9 +138,7 @@ class Channel(BaseQuantum):
             output_state = self._func(state)
         else:  # compute output state using Choi matrix
             common_state = kron(state.T, Qobj(np.eye(2 ** self.n_qubits)))
-            output_state = (common_state @ self.choi).ptrace(
-                list(range(self.n_qubits, 2 * self.n_qubits))
-            )
+            output_state = (common_state @ self.choi).ptrace(list(range(self.n_qubits, 2 * self.n_qubits)))
         return output_state
 
     def is_cptp(self, atol=1e-5, verbose=True):

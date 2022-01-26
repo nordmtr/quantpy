@@ -282,9 +282,7 @@ def get_CL_list_channel(
     for i in cycle:
         tmg.experiment(n_measurements, povm)
 
-        channel_hat = tmg.point_estimate(
-            method, states_est_method=states_est_method, states_init=states_init
-        )
+        channel_hat = tmg.point_estimate(method, states_est_method=states_est_method, states_init=states_init)
         delta = tmg.dst(channel.choi, channel_hat.choi)
         if interval == "gamma":
             distances, CLs = tmg.gamma_interval(n_points)

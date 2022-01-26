@@ -129,9 +129,9 @@ class Qobj(BaseQuantum):
         if "bloch" not in self._types:
             self._types.add("bloch")
             basis = generate_pauli(self.n_qubits)
-            self._bloch = np.array(
-                [np.real(product(basis_element, self._matrix)) for basis_element in basis]
-            ) / (2 ** self.n_qubits)
+            self._bloch = np.array([np.real(product(basis_element, self._matrix)) for basis_element in basis]) / (
+                2 ** self.n_qubits
+            )
         return self._bloch
 
     @bloch.setter

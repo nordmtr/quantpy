@@ -226,8 +226,4 @@ def _choi_to_kraus(choi):
     EPS = 1e-15
     eigvals, eigvecs = choi.eig()
     eigvecs = list(eigvecs.T)
-    return [
-        Operator(_vec2mat(vec) * np.sqrt(val))
-        for val, vec in zip(eigvals, eigvecs)
-        if abs(val) > EPS
-    ]
+    return [Operator(_vec2mat(vec) * np.sqrt(val)) for val, vec in zip(eigvals, eigvecs) if abs(val) > EPS]

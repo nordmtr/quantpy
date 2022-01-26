@@ -235,9 +235,7 @@ class ProcessTomograph:
             y += y_diff
             x_diff = self.cp_projection(Channel(_vec2mat(y + q)), vectorized=True) - x
             x += x_diff
-            stop_criterion_value += 2 * (
-                np.abs(np.sum(y_diff.T.conj() * q)) + np.abs(np.sum(x_diff.T.conj() * p))
-            )
+            stop_criterion_value += 2 * (np.abs(np.sum(y_diff.T.conj() * q)) + np.abs(np.sum(x_diff.T.conj() * p)))
             p_diff = x - y
             p += p_diff
             q_diff = y - x
@@ -252,12 +250,7 @@ class ProcessTomograph:
         dim = 2 ** channel.n_qubits
         choi_vec = _mat2vec(channel.choi.matrix)
         tp_choi_vec = (
-            choi_vec
-            + (
-                self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim))
-                - self._ptrace_dag_ptrace @ choi_vec
-            )
-            / dim
+            choi_vec + (self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim)) - self._ptrace_dag_ptrace @ choi_vec) / dim
         )
         if vectorized:
             return tp_choi_vec
@@ -278,9 +271,7 @@ class ProcessTomograph:
         return self._cptp_projection_vec(noncptp_x_prime)
 
     def _point_estimate_lifp(self, cptp):
-        self.frequencies = np.hstack(
-            [stmg.results / stmg.results.sum() for stmg in self.tomographs]
-        )
+        self.frequencies = np.hstack([stmg.results / stmg.results.sum() for stmg in self.tomographs])
         self.reconstructed_channel = Channel(_vec2mat(self._lifp_oper_inv @ self.frequencies))
         if cptp:
             self.reconstructed_channel = self.cptp_projection(self.reconstructed_channel)
@@ -295,9 +286,7 @@ class ProcessTomograph:
             grad = -self._lifp_oper.T.conj() @ (self._unnorm_results / probas)
             D = self._cptp_projection_vec(choi_vec - grad / mu) - choi_vec
             alpha = 1
-            while self._nll(choi_vec + alpha * D) - self._nll(choi_vec) > gamma * alpha * np.dot(
-                D, grad
-            ):
+            while self._nll(choi_vec + alpha * D) - self._nll(choi_vec) > gamma * alpha * np.dot(D, grad):
                 alpha /= 2
             new_choi_vec = choi_vec + alpha * D
             if self._nll(choi_vec) - self._nll(new_choi_vec) > tol:
@@ -314,9 +303,7 @@ class ProcessTomograph:
         return -log_likelihood
 
     def _point_estimate_states(self, cptp, method, physical, init, n_iter, tol):
-        output_states = [
-            tmg.point_estimate(method, physical, init, n_iter, tol) for tmg in self.tomographs
-        ]
+        output_states = [tmg.point_estimate(method, physical, init, n_iter, tol) for tmg in self.tomographs]
         output_basis = Basis(output_states)
         choi_matrix = Qobj(np.zeros((output_basis.dim, output_basis.dim)))
         for decomposed_single_entry in self._decomposed_single_entries:
