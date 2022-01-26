@@ -8,6 +8,9 @@ lightning_logs
 checkpoints
 .idea
 
+# isort artifacts
+*.isorted
+
 # hydra output dirs
 outputs
 
