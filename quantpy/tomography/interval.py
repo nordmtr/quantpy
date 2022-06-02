@@ -1,4 +1,3 @@
-import math
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 
@@ -8,14 +7,13 @@ from cvxopt import matrix, solvers
 from einops import rearrange, repeat
 from scipy.interpolate import interp1d
 
-import polytope as pc
-
 from ..geometry import hs_dst, if_dst, trace_dst
 from ..mhmc import MHMC, normalized_update
-from ..polytope import compute_polytope_volume, find_max_distance_to_polytope
 from ..routines import _left_inv, _mat2vec, _matrix_to_real_tril_vec, _real_tril_vec_to_matrix, _vec2mat
 from ..stats import l2_mean, l2_variance
 from .polytopes.utils import count_confidence, count_delta
+
+solvers.options["show_progress"] = False
 
 
 class ConfidenceInterval(ABC):
@@ -28,7 +26,7 @@ class ConfidenceInterval(ABC):
         Parameters
         ----------
         tmg : StateTomograph or ProcessTomograph
-            Object with tomography results
+            Object with tomography flat_results
         """
         self.tmg = tmg
         if hasattr(tmg, "state"):
@@ -60,33 +58,29 @@ class ConfidenceInterval(ABC):
 
 
 class MomentInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, max_confidence=0.999, distr_type="gamma"):
+    def __init__(self, tmg, distr_type="gamma"):
         """Use moments to obtain confidence interval.
 
         Parameters
         ----------
         tmg : StateTomograph or ProcessTomograph
-            Object with tomography results
-        n_points : int
-            Number of distances to get.
-        max_confidence : float
-            Maximum confidence level
+            Object with tomography flat_results
         """
         kwargs = _pop_hidden_keys(locals())
         super().__init__(tmg, **kwargs)
 
     def setup(self):
         if self.mode == Mode.STATE:
-            dim = 2 ** self.tmg.state.n_qubits
+            dim = 2**self.tmg.state.n_qubits
             n_measurements = self.tmg.n_measurements
-            frequencies = self.tmg.raw_results / self.tmg.n_measurements[:, None]
+            frequencies = self.tmg.results / self.tmg.n_measurements[:, None]
             # reshape, invert, reshape back
             inv_matrix = _left_inv(rearrange(self.tmg.povm_matrix, "m p d -> (m p) d")) / dim
             inv_matrix = rearrange(inv_matrix, "d (m p) -> d m p", m=frequencies.shape[0])
         else:
-            dim = 4 ** self.tmg.channel.n_qubits
+            dim = 4**self.tmg.channel.n_qubits
             n_measurements = self.tmg.tomographs[0].n_measurements
-            frequencies = np.vstack([tmg.raw_results / n_measurements[:, None] for tmg in self.tmg.tomographs])
+            frequencies = np.vstack([tmg.results / n_measurements[:, None] for tmg in self.tmg.tomographs])
             povm_matrix = rearrange(self.tmg.tomographs[0].povm_matrix, "m p d -> (m p) d")
             states_matrix = np.asarray([rho.T.bloch for rho in self.tmg.input_basis.elements])
             channel_matrix = np.einsum("s d, p i -> s p d i", states_matrix, povm_matrix)
@@ -107,7 +101,6 @@ class MomentInterval(ConfidenceInterval):
             distr = sts.expon(scale=mean)
         else:
             raise NotImplementedError(f"Unsupported distribution type {self.distr_type}")
-        conf_levels = np.linspace(0.001, self.max_confidence, self.n_points)
 
         if self.tmg.dst == hs_dst:
             alpha = np.sqrt(dim / 2)
@@ -116,8 +109,112 @@ class MomentInterval(ConfidenceInterval):
         else:
             raise NotImplementedError()
 
-        dist = np.sqrt(distr.ppf(conf_levels)) * alpha
-        self.cl_to_dist = interp1d(conf_levels, dist)
+        self.cl_to_dist = lambda cl: np.sqrt(distr.ppf(cl)) * alpha
+
+
+class MomentFidelityStateInterval(MomentInterval):
+    def __init__(self, tmg, distr_type="gamma", target_state=None):
+        self.target_state = target_state
+        super().__init__(tmg, distr_type=distr_type)
+
+    def __call__(self, conf_levels=None):
+        if conf_levels is None:
+            conf_levels = np.linspace(1e-3, 1 - 1e-3, 1000)
+        if not hasattr(self, "cl_to_dist_max"):
+            self.setup()
+        return (self.cl_to_dist_min(conf_levels), self.cl_to_dist_max(conf_levels)), conf_levels
+
+    def setup(self):
+        super().setup()
+
+        if not hasattr(self.tmg, "reconstructed_state"):
+            _ = self.tmg.point_estimate(physical=False)
+
+        if self.target_state is None:
+            self.target_state = self.tmg.reconstructed_state
+        dim = 2**self.tmg.state.n_qubits
+        conf_levels = np.concatenate((np.arange(1e-7, 0.8, 0.01), np.linspace(0.8, 1 - 1e-7, 200)))
+        dist_list = self.cl_to_dist(conf_levels)
+
+        c = matrix(self.target_state.bloch)
+        A = matrix([1.0] + [0] * (dim**2 - 1), size=(1, dim**2))
+        b = matrix([1 / dim])
+        G = [matrix(np.vstack((np.zeros(dim**2), -np.eye(dim**2))))]
+        h = [matrix([0] + list(-self.tmg.reconstructed_state.bloch))]
+        alpha = np.sqrt(2 / dim)
+
+        dist_min = []
+        dist_max = []
+        for dist in dist_list:
+            h[0][0] = dist * alpha
+            sol = solvers.socp(c, Gq=G, hq=h, A=A, b=b)
+            if not sol["primal objective"]:
+                dist_min.append(1)
+            else:
+                dist_min.append(sol["primal objective"] * dim)
+            sol = solvers.socp(-c, Gq=G, hq=h, A=A, b=b)
+            if not sol["primal objective"]:
+                dist_max.append(1)
+            else:
+                dist_max.append(-sol["primal objective"] * dim)
+
+        self.cl_to_dist_max = interp1d(conf_levels, dist_max)
+        self.cl_to_dist_min = interp1d(conf_levels, dist_min)
+
+
+class MomentFidelityProcessInterval(MomentInterval):
+    def __init__(self, tmg, distr_type="gamma", target_process=None):
+        self.target_process = target_process
+        super().__init__(tmg, distr_type=distr_type)
+
+    def __call__(self, conf_levels=None):
+        if conf_levels is None:
+            conf_levels = np.linspace(1e-3, 1 - 1e-3, 1000)
+        if not hasattr(self, "cl_to_dist_max"):
+            self.setup()
+        return (self.cl_to_dist_min(conf_levels), self.cl_to_dist_max(conf_levels)), conf_levels
+
+    def setup(self):
+        super().setup()
+
+        if not hasattr(self.tmg, "reconstructed_channel"):
+            _ = self.tmg.point_estimate(cptp=False)
+
+        if self.target_process is None:
+            self.target_process = self.tmg.reconstructed_channel
+
+        dim_in = dim_out = 2**self.tmg.channel.n_qubits
+        dim = dim_in * dim_out
+        trivial_indices = list(range(0, dim**2, dim_out**2))
+
+        conf_levels = np.concatenate((np.arange(1e-7, 0.8, 0.01), np.linspace(0.8, 1 - 1e-7, 200)))
+        dist_list = self.cl_to_dist(conf_levels)
+
+        # TODO: double-check the correctness
+        c = matrix(self.target_process.choi.bloch)
+        A = matrix(np.eye(dim**2)[trivial_indices])
+        b = matrix([1 / dim_in] + [0] * (dim_in**2 - 1))
+        G = [matrix(np.vstack((np.zeros(dim**2), -np.eye(dim**2))))]
+        h = [matrix([0] + list(-self.tmg.reconstructed_channel.choi.bloch))]
+        alpha = np.sqrt(2 / dim)
+
+        dist_min = []
+        dist_max = []
+        for dist in dist_list:
+            h[0][0] = dist * alpha
+            sol = solvers.socp(c, Gq=G, hq=h, A=A, b=b)
+            if not sol["primal objective"]:
+                dist_min.append(1)
+            else:
+                dist_min.append(sol["primal objective"])
+            sol = solvers.socp(-c, Gq=G, hq=h, A=A, b=b)
+            if not sol["primal objective"]:
+                dist_max.append(1)
+            else:
+                dist_max.append(-sol["primal objective"])
+
+        self.cl_to_dist_max = interp1d(conf_levels, dist_max)
+        self.cl_to_dist_min = interp1d(conf_levels, dist_min)
 
 
 class SugiyamaInterval(ConfidenceInterval):
@@ -128,7 +225,7 @@ class SugiyamaInterval(ConfidenceInterval):
         Parameters
         ----------
         tmg : StateTomograph
-            Object with tomography results
+            Object with tomography flat_results
         n_points : int
             Number of distances to get.
         max_confidence : float
@@ -140,7 +237,7 @@ class SugiyamaInterval(ConfidenceInterval):
     def setup(self):
         if self.mode == Mode.CHANNEL:
             raise NotImplementedError("Sugiyama interval works only for state tomography")
-        dim = 2 ** self.tmg.state.n_qubits
+        dim = 2**self.tmg.state.n_qubits
         dist = np.linspace(0, 1, self.n_points)
         povm_matrix = np.reshape(self.tmg.povm_matrix, (-1, self.tmg.povm_matrix.shape[-1])) * dim
         povm_matrix /= np.sqrt(2 * dim)
@@ -156,11 +253,11 @@ class SugiyamaInterval(ConfidenceInterval):
             + self.EPS
         )
         if self.tmg.dst == hs_dst:
-            b = 8 / (dim ** 2 - 1)
+            b = 8 / (dim**2 - 1)
         elif self.tmg.dst == trace_dst:
-            b = 16 / (dim ** 2 - 1) / dim
+            b = 16 / (dim**2 - 1) / dim
         elif self.tmg.dst == if_dst:
-            b = 4 / (dim ** 2 - 1) / dim
+            b = 4 / (dim**2 - 1) / dim
         else:
             raise NotImplementedError("Unsupported distance")
         conf_levels = 1 - 2 * np.sum(
@@ -178,7 +275,7 @@ class PolytopeStateInterval(ConfidenceInterval):
         Parameters
         ----------
         tmg : StateTomograph
-            Object with tomography results
+            Object with tomography flat_results
         n_points : int
             Number of distances to get.
         target_state : qp.Qobj
@@ -201,8 +298,8 @@ class PolytopeStateInterval(ConfidenceInterval):
         if self.target_state is None:
             self.target_state = self.tmg.state
 
-        dim = 2 ** self.tmg.state.n_qubits
-        frequencies = np.clip(self.tmg.raw_results / self.tmg.n_measurements[:, None], self.EPS, 1 - self.EPS)
+        dim = 2**self.tmg.state.n_qubits
+        frequencies = np.clip(self.tmg.results / self.tmg.n_measurements[:, None], self.EPS, 1 - self.EPS)
 
         povm_matrix = (
             np.reshape(
@@ -212,8 +309,9 @@ class PolytopeStateInterval(ConfidenceInterval):
             * self.tmg.povm_matrix.shape[0]
         )
         A = np.ascontiguousarray(povm_matrix[:, 1:]) * dim
+        c = matrix(self.target_state.bloch[1:])
 
-        max_delta = count_delta(1 - 1e-5, frequencies, self.tmg.n_measurements)
+        max_delta = count_delta(1 - 1e-7, frequencies, self.tmg.n_measurements)
         min_delta = count_delta(0, frequencies, self.tmg.n_measurements)
         deltas = np.linspace(min_delta, max_delta, self.n_points)
 
@@ -221,7 +319,6 @@ class PolytopeStateInterval(ConfidenceInterval):
         dist_min = []
         for delta in deltas:
             b = np.clip(np.hstack(frequencies) + delta, self.EPS, 1 - self.EPS) - povm_matrix[:, 0]
-            c = matrix(self.target_state.bloch[1:])
             G, h = matrix(A), matrix(b)
             sol = solvers.lp(c, G, h)
             if not sol["primal objective"]:
@@ -249,7 +346,7 @@ class PolytopeProcessInterval(ConfidenceInterval):
         Parameters
         ----------
         tmg : ProcessTomograph
-            Object with tomography results
+            Object with tomography flat_results
         n_points : int
             Number of distances to get.
         target_channel : qp.Qobj
@@ -267,9 +364,9 @@ class PolytopeProcessInterval(ConfidenceInterval):
 
     def setup(self):
         channel = self.tmg.channel
-        dim_in = dim_out = 2 ** channel.n_qubits
+        dim_in = dim_out = 2**channel.n_qubits
         dim = dim_in * dim_out
-        bloch_indices = [i for i in range(dim ** 2) if i % (dim_out ** 2) != 0]
+        bloch_indices = [i for i in range(dim**2) if i % (dim_out**2) != 0]
 
         if self.target_channel is None:
             self.target_channel = channel
@@ -278,10 +375,7 @@ class PolytopeProcessInterval(ConfidenceInterval):
         n_measurements = self.tmg.tomographs[0].n_measurements
 
         frequencies = np.asarray(
-            [
-                np.clip(tmg.raw_results / tmg.n_measurements[:, None], self.EPS, 1 - self.EPS)
-                for tmg in self.tmg.tomographs
-            ]
+            [np.clip(tmg.results / tmg.n_measurements[:, None], self.EPS, 1 - self.EPS) for tmg in self.tmg.tomographs]
         )
 
         meas_matrix = (
@@ -295,7 +389,7 @@ class PolytopeProcessInterval(ConfidenceInterval):
         channel_matrix = rearrange(channel_matrix, "i j a b -> (i j) (a b)")
         A = np.ascontiguousarray(channel_matrix)
 
-        max_delta = count_delta(1 - 1e-5, frequencies, n_measurements)
+        max_delta = count_delta(1 - 1e-7, frequencies, n_measurements)
         min_delta = count_delta(0, frequencies, n_measurements)
         deltas = np.linspace(min_delta, max_delta, self.n_points)
 
@@ -327,95 +421,6 @@ class PolytopeProcessInterval(ConfidenceInterval):
         self.cl_to_dist_min = interp1d(conf_levels, dist_min)
 
 
-class WangInterval(ConfidenceInterval):
-    def __init__(self, tmg, n_points=1000, method="bbox", max_confidence=0.999):
-        """Construct a confidence interval based on Clopper-Pearson interval as in work
-        1808.09988 of Wang et al.
-
-        Parameters
-        ----------
-        tmg : StateTomograph
-            Object with tomography results
-        n_points : int
-            Number of distances to get.
-        method : str
-            Method of calculating the radius of the circumscribed sphere.
-        max_confidence : float
-            Maximum confidence level
-        """
-        kwargs = _pop_hidden_keys(locals())
-        super().__init__(tmg, **kwargs)
-
-    def setup(self):
-        if self.mode == Mode.CHANNEL:
-            raise NotImplementedError("This interval works only for state tomography")
-        rho = self.tmg.point_estimate("lin", physical=False)
-        dim = 2 ** self.tmg.state.n_qubits
-        bloch_dim = dim ** 2 - 1
-
-        frequencies = np.clip(self.tmg.raw_results / self.tmg.n_measurements[:, None], self.EPS, 1 - self.EPS)
-
-        povm_matrix = (
-            np.reshape(
-                self.tmg.povm_matrix * self.tmg.n_measurements[:, None, None] / np.sum(self.tmg.n_measurements),
-                (-1, self.tmg.povm_matrix.shape[-1]),
-            )
-            * self.tmg.povm_matrix.shape[0]
-        )
-        A = np.ascontiguousarray(povm_matrix[:, 1:]) * dim
-        max_delta = self._count_delta(self.max_confidence, frequencies)
-
-        if self.method == "coarse":
-            A_inv = _left_inv(A)
-            prob_dim = povm_matrix.shape[0]
-            coef1 = np.linalg.norm(A_inv, ord=2) * (self.tmg.povm_matrix.shape[1] - 1) * np.sqrt(prob_dim)
-            coef2 = np.linalg.norm(A_inv, ord=2) ** 2 * prob_dim
-            max_dist = max(max_delta * coef1, np.sqrt(max_delta * coef2))
-            dist = np.linspace(0, max_dist, self.n_points)
-            deltas = np.maximum(dist / coef1, dist ** 2 / coef2)
-        else:
-            deltas = np.linspace(0, max_delta, self.n_points)
-            dist = []
-            for delta in deltas:
-                b = np.clip(np.hstack(frequencies) + delta, self.EPS, 1 - self.EPS) - povm_matrix[:, 0]
-                if self.method == "bbox":
-                    lb, ub = pc.Polytope(A, b).bounding_box
-                    volume = np.prod(ub - lb)
-                    radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim) / math.sqrt(math.pi)
-                elif self.method == "approx":
-                    volume = compute_polytope_volume(pc.Polytope(A, b))
-                    radius = (volume * math.gamma(bloch_dim / 2 + 1)) ** (1 / bloch_dim) / math.sqrt(math.pi)
-                elif self.method == "hit_and_run":
-                    rho_bloch = rho.bloch[1:]
-                    radius = find_max_distance_to_polytope(A, b, rho_bloch, rho_bloch)
-                else:
-                    raise ValueError("Invalid value for argument `mode`.")
-                dist.append(radius)
-
-        conf_levels = []
-        for delta in deltas:
-            conf_levels.append(self._count_confidence(delta, frequencies))
-        self.cl_to_dist = interp1d(conf_levels, dist)
-
-    def _count_confidence(self, delta, frequencies):
-        freq_plus_delta = np.clip(frequencies + delta, self.EPS, 1 - self.EPS)
-        KL_divergence = frequencies * np.log(frequencies / freq_plus_delta) + (1 - frequencies) * np.log(
-            (1 - frequencies) / (1 - freq_plus_delta)
-        )
-        KL_divergence = np.where(freq_plus_delta < 1 - self.EPS, KL_divergence, np.inf)
-        epsilons = np.exp(-self.tmg.n_measurements[:, None] * KL_divergence)
-        epsilons = np.where(np.abs(frequencies - 1) < 2 * self.EPS, 0, epsilons)
-        return np.prod(np.maximum(1 - np.sum(epsilons, axis=-1), 0))
-
-    def _count_delta(self, confidence_threshold, frequencies):
-        delta = 1e-10
-        while True:
-            confidence = self._count_confidence(delta, frequencies)
-            if confidence > confidence_threshold:
-                return delta
-            delta *= 2
-
-
 # noinspection PyProtectedMember,PyProtectedMember
 class HolderInterval(ConfidenceInterval):
     def __init__(
@@ -433,7 +438,6 @@ class HolderInterval(ConfidenceInterval):
         step=0.01,
         burn_steps=1000,
         thinning=1,
-        wang_method="bbox",
     ):
         """Conducts `n_points` experiments, constructs confidence intervals for each,
         computes confidence level that corresponds to the distance between
@@ -442,7 +446,7 @@ class HolderInterval(ConfidenceInterval):
         Parameters
         ----------
         tmg : ProcessTomograph
-            Object with tomography results
+            Object with tomography flat_results
         n_points : int
             Number of distances to get.
         kind : str
@@ -489,8 +493,6 @@ class HolderInterval(ConfidenceInterval):
             Steps for burning in.
         thinning : int
             Takes each `thinning` sample generated by MCMC.
-        wang_method : str
-            Method for Wang method
         """
 
         kwargs = _pop_hidden_keys(locals())
@@ -541,10 +543,6 @@ class HolderInterval(ConfidenceInterval):
             ]
         elif self.kind == "sugiyama":
             self.intervals = [SugiyamaInterval(tmg, self.n_points, self.max_confidence) for tmg in self.tmg.tomographs]
-        elif self.kind == "wang":
-            self.intervals = [
-                WangInterval(tmg, self.n_points, self.wang_method, self.max_confidence) for tmg in self.tmg.tomographs
-            ]
         else:
             raise ValueError("Incorrect value for argument `kind`.")
 
@@ -573,7 +571,7 @@ class BootstrapStateInterval(ConfidenceInterval):
         Parameters
         ----------
         tmg : StateTomograph
-            Object with tomography results
+            Object with tomography flat_results
         n_points : int
             Number of experiments to perform
         method : str, default='lin'
@@ -648,7 +646,7 @@ class BootstrapProcessInterval(ConfidenceInterval):
         Parameters
         ----------
         tmg : ProcessTomograph
-            Object with tomography results
+            Object with tomography flat_results
         n_points : int
             Number of experiments to perform
         method : str, default='lifp'
@@ -721,7 +719,7 @@ class MHMCStateInterval(ConfidenceInterval):
         Parameters
         ----------
         tmg : StateTomograph
-            Object with tomography results
+            Object with tomography flat_results
         n_points : int
             Number of samples to be produced by MCMC.
         step : float
@@ -756,7 +754,7 @@ class MHMCStateInterval(ConfidenceInterval):
         elif self.state is None:
             self.state = self.tmg.point_estimate(method="mle", physical=True)
 
-        dim = 4 ** self.tmg.state.n_qubits
+        dim = 4**self.tmg.state.n_qubits
         if not (self.warm_start and hasattr(self, "chain")):
             x_init = _matrix_to_real_tril_vec(self.state.matrix)
             self.chain = MHMC(
@@ -801,7 +799,7 @@ class MHMCProcessInterval(ConfidenceInterval):
         Parameters
         ----------
         tmg : ProcessTomograph
-            Object with tomography results
+            Object with tomography flat_results
         n_points : int
             Number of samples to be produced by MCMC.
         step : float
@@ -845,7 +843,7 @@ class MHMCProcessInterval(ConfidenceInterval):
                 states_init=self.states_init,
             )
 
-        dim = 16 ** self.tmg.channel.n_qubits
+        dim = 16**self.tmg.channel.n_qubits
         if not (self.warm_start and hasattr(self, "chain")):
             x_init = _mat2vec(self.channel.choi.matrix)
             self.chain = MHMC(

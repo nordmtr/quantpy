@@ -90,11 +90,11 @@ class Qobj(BaseQuantum):
             if len(data.shape) == 1:
                 n_qubits_float = math.log2(data.shape[0]) / 2
                 self.n_qubits = math.ceil(n_qubits_float)
-                dim = 2 ** self.n_qubits
+                dim = 2**self.n_qubits
                 if n_qubits_float.is_integer():
                     self._bloch = data
                 else:
-                    self._bloch = np.ones(dim ** 2) / dim
+                    self._bloch = np.ones(dim**2) / dim
                     self._bloch[1:] = data
                 self._matrix = None
                 self._types.add("bloch")
@@ -112,8 +112,8 @@ class Qobj(BaseQuantum):
         if "matrix" not in self._types:
             self._types.add("matrix")
             basis = generate_pauli(self.n_qubits)
-            self._matrix = np.zeros((2 ** self.n_qubits, 2 ** self.n_qubits), dtype=np.complex128)
-            for i in range(4 ** self.n_qubits):
+            self._matrix = np.zeros((2**self.n_qubits, 2**self.n_qubits), dtype=np.complex128)
+            for i in range(4**self.n_qubits):
                 self._matrix += basis[i] * self._bloch[i]
         return self._matrix
 
@@ -130,7 +130,7 @@ class Qobj(BaseQuantum):
             self._types.add("bloch")
             basis = generate_pauli(self.n_qubits)
             self._bloch = np.array([np.real(product(basis_element, self._matrix)) for basis_element in basis]) / (
-                2 ** self.n_qubits
+                2**self.n_qubits
             )
         return self._bloch
 
@@ -339,12 +339,18 @@ class Qobj(BaseQuantum):
 
 def fully_mixed(n_qubits=1):
     """Return fully mixed state."""
-    dim = 2 ** n_qubits
+    dim = 2**n_qubits
     return Qobj(np.eye(dim, dtype=np.complex128) / dim)
 
 
 # noinspection PyPep8Naming
 def GHZ(n_qubits=3):
     """Return GHZ state."""
-    ket = ([1] + [0] * (2 ** n_qubits - 2) + [1]) / np.sqrt(2)
+    ket = ([1] + [0] * (2**n_qubits - 2) + [1]) / np.sqrt(2)
+    return Qobj(ket, is_ket=True)
+
+
+def zero(n_qubits=1):
+    """Return zero state."""
+    ket = [1] + [0] * (2**n_qubits - 1)
     return Qobj(ket, is_ket=True)

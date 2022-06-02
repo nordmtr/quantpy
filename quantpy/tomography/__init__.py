@@ -4,9 +4,10 @@ from .interval import (
     HolderInterval,
     MHMCProcessInterval,
     MHMCStateInterval,
+    MomentFidelityProcessInterval,
+    MomentFidelityStateInterval,
     MomentInterval,
     SugiyamaInterval,
-    WangInterval,
 )
 from .process import ProcessTomograph
 from .state import StateTomograph

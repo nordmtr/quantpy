@@ -77,12 +77,12 @@ class ProcessTomograph:
             self.dst = dst
         self.input_states = input_states
         self.input_basis = Basis(_generate_input_states(input_states, channel.n_qubits))
-        if self.input_basis.dim != 4 ** channel.n_qubits:
+        if self.input_basis.dim != 4**channel.n_qubits:
             raise ValueError("Input states do not constitute a basis")
         self._decomposed_single_entries = np.array(
             [
                 self.input_basis.decompose(Qobj(single_entry))
-                for single_entry in generate_single_entries(2 ** channel.n_qubits)
+                for single_entry in generate_single_entries(2**channel.n_qubits)
             ]
         )
         self._ptrace_oper = _out_ptrace_oper(channel.n_qubits)
@@ -116,7 +116,7 @@ class ProcessTomograph:
             See :ref:`generate_measurement_matrix` for more detailed documentation
 
         warm_start : bool, default=False
-            If True, do not overwrite the previous experiment results, add all results to those
+            If True, do not overwrite the previous experiment flat_results, add all flat_results to those
             of the previous run
         """
         if not warm_start:
@@ -127,6 +127,17 @@ class ProcessTomograph:
                 self.tomographs.append(tmg)
         for tmg in self.tomographs:
             tmg.experiment(n_measurements, povm, warm_start=warm_start)
+
+    @property
+    def results(self):
+        assert hasattr(self, "tomographs"), "No results"
+        return np.asarray([stmg.results for stmg in self.tomographs])
+
+    @results.setter
+    def results(self, results):
+        assert hasattr(self, "tomographs"), "Call experiment first"
+        for stmg, stmg_results in zip(self.tomographs, results):
+            stmg.results = stmg_results
 
     def point_estimate(
         self,
@@ -180,7 +191,7 @@ class ProcessTomograph:
         -------
         reconstructed_channel : Channel
         """
-        dim = 2 ** self.channel.n_qubits
+        dim = 2**self.channel.n_qubits
         self._lifp_oper = []
         self._bloch_oper = []
         povm_matrix = np.reshape(
@@ -195,11 +206,11 @@ class ProcessTomograph:
             self._bloch_oper.append(np.kron(inp_state.T.bloch, povm_bloch))
 
         self._lifp_oper = np.array(self._lifp_oper)
-        self._bloch_oper = np.array(self._bloch_oper) * dim ** 2
+        self._bloch_oper = np.array(self._bloch_oper) * dim**2
         self._lifp_oper_inv = _left_inv(self._lifp_oper)
         self._bloch_oper_inv = _left_inv(self._bloch_oper)
 
-        self._unnorm_results = np.hstack([stmg.results for stmg in self.tomographs])
+        self._unnorm_results = np.hstack([stmg.flat_results for stmg in self.tomographs])
 
         if method == "lifp":
             return self._point_estimate_lifp(cptp=cptp)
@@ -247,7 +258,7 @@ class ProcessTomograph:
 
     def tp_projection(self, channel, vectorized=False):
         """Projection of a channel onto TP space"""
-        dim = 2 ** channel.n_qubits
+        dim = 2**channel.n_qubits
         choi_vec = _mat2vec(channel.choi.matrix)
         tp_choi_vec = (
             choi_vec + (self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim)) - self._ptrace_dag_ptrace @ choi_vec) / dim
@@ -271,7 +282,7 @@ class ProcessTomograph:
         return self._cptp_projection_vec(noncptp_x_prime)
 
     def _point_estimate_lifp(self, cptp):
-        self.frequencies = np.hstack([stmg.results / stmg.results.sum() for stmg in self.tomographs])
+        self.frequencies = np.hstack([stmg.flat_results / stmg.flat_results.sum() for stmg in self.tomographs])
         self.reconstructed_channel = Channel(_vec2mat(self._lifp_oper_inv @ self.frequencies))
         if cptp:
             self.reconstructed_channel = self.cptp_projection(self.reconstructed_channel)
@@ -279,7 +290,7 @@ class ProcessTomograph:
 
     def _point_estimate_pgdb(self, n_iter, tol=1e-10):
         choi_vec = _mat2vec(fully_mixed(self.channel.n_qubits * 2).matrix)
-        mu = 1.5 / (4 ** self.channel.n_qubits)
+        mu = 1.5 / (4**self.channel.n_qubits)
         gamma = 0.3
         for i in range(n_iter):
             probas = self._lifp_oper @ choi_vec
@@ -316,12 +327,12 @@ class ProcessTomograph:
         return self.reconstructed_channel
 
 
-def _generate_input_states(kind, n_qubits):
+def _generate_input_states(input_states, n_qubits):
     """Generate input states to use in quantum process tomography"""
-    if isinstance(kind, list):
-        return kind
+    if isinstance(input_states, list):
+        return input_states
     input_states_list = []
-    for input_state_bloch in np.squeeze(generate_measurement_matrix(kind, n_qubits)):
+    for input_state_bloch in np.squeeze(generate_measurement_matrix(input_states, n_qubits)):
         input_state = Qobj(input_state_bloch)
         input_state /= input_state.trace()
         input_states_list.append(input_state)

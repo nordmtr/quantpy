@@ -9,7 +9,7 @@ from quantpy.tomography.polytopes.utils import count_delta
 def test_qst(state, conf_levels, n_measurements=1000, n_trials=1000):
     results = np.zeros(len(conf_levels))
 
-    dim = 2 ** state.n_qubits
+    dim = 2**state.n_qubits
     tmg = StateTomograph(state)
     tmg.experiment(n_measurements)
     EPS = 1e-15
@@ -27,7 +27,7 @@ def test_qst(state, conf_levels, n_measurements=1000, n_trials=1000):
     for _ in tqdm(range(n_trials)):
         tmg = StateTomograph(state)
         tmg.experiment(n_measurements)
-        frequencies = np.clip(tmg.raw_results / tmg.n_measurements[:, None], EPS, 1 - EPS)
+        frequencies = np.clip(tmg.results / tmg.n_measurements[:, None], EPS, 1 - EPS)
         for j, cl in enumerate(conf_levels):
             delta = count_delta(cl, frequencies, tmg.n_measurements)
             b = np.clip(np.hstack(frequencies) + delta, EPS, 1 - EPS) - povm_matrix[:, 0]
@@ -40,8 +40,8 @@ def test_qst(state, conf_levels, n_measurements=1000, n_trials=1000):
 def test_qpt(channel, conf_levels, n_measurements=1000, n_trials=1000, input_states="sic"):
     results = np.zeros(len(conf_levels))
 
-    dim = 4 ** channel.n_qubits
-    bloch_indices = [i for i in range(dim ** 2) if i % dim != 0]
+    dim = 4**channel.n_qubits
+    bloch_indices = [i for i in range(dim**2) if i % dim != 0]
     tmg = ProcessTomograph(channel, input_states=input_states)
     tmg.experiment(n_measurements)
     EPS = 1e-15
@@ -63,7 +63,7 @@ def test_qpt(channel, conf_levels, n_measurements=1000, n_trials=1000, input_sta
         tmg = ProcessTomograph(channel, input_states=input_states)
         tmg.experiment(n_measurements)
         frequencies = np.asarray(
-            [np.clip(ptmg.raw_results / ptmg.n_measurements[:, None], EPS, 1 - EPS) for ptmg in tmg.tomographs]
+            [np.clip(ptmg.results / ptmg.n_measurements[:, None], EPS, 1 - EPS) for ptmg in tmg.tomographs]
         )
         for j, cl in enumerate(conf_levels):
             delta = count_delta(cl, frequencies, tmg.tomographs[0].n_measurements)

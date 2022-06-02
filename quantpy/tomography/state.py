@@ -38,9 +38,9 @@ class StateTomograph:
         Rows are bloch vectors that sum into unity
     reconstructed_state : Qobj
         The most recent estimation of a density matrix, if ever performed
-    results : numpy 1-D array
+    flat_results : numpy 1-D array
         Results of the simulated experiment.
-        results[i] is the number of outcomes corresponding to POVM_matrix[i,:]
+        flat_results[i] is the number of outcomes corresponding to POVM_matrix[i,:]
 
     Methods
     -------
@@ -65,6 +65,8 @@ class StateTomograph:
                 raise ValueError("Invalid value for argument `dst`")
         else:
             self.dst = dst
+
+        self._results = None
 
     def experiment(self, n_measurements, povm="proj-set", warm_start=False):
         """Simulate a real quantum state tomography.
@@ -93,7 +95,7 @@ class StateTomograph:
             See :ref:`generate_measurement_matrix` for more detailed documentation
 
         warm_start : bool, default=False
-            If True, do not overwrite the previous experiment results, add all results to those
+            If True, do not overwrite the previous experiment flat_results, add all flat_results to those
             of the previous run
         """
         povm_matrix = generate_measurement_matrix(povm, self.state.n_qubits)
@@ -104,41 +106,39 @@ class StateTomograph:
         elif len(n_measurements) != number_of_povms:
             raise ValueError("Wrong length for argument `n_measurements`")
 
-        probas = np.einsum("ijk,k->ij", povm_matrix, self.state.bloch) * (2 ** self.state.n_qubits)
+        probas = np.einsum("ijk,k->ij", povm_matrix, self.state.bloch) * (2**self.state.n_qubits)
         probas = np.clip(probas, 0, 1)
-        raw_results = [
+        results = [
             np.random.multinomial(n_measurements_for_povm, probas_for_povm)
             for probas_for_povm, n_measurements_for_povm in zip(probas, n_measurements)
         ]
-        results = np.hstack(raw_results)
 
         if warm_start:
-            self.povm_matrix = (
-                np.vstack(
-                    (
-                        self.povm_matrix * np.sum(self.n_measurements),
-                        povm_matrix * np.sum(n_measurements),
-                    )
+            self.povm_matrix = np.vstack(
+                (
+                    self.povm_matrix * np.sum(self.n_measurements),
+                    povm_matrix * np.sum(n_measurements),
                 )
-                / (np.sum(self.n_measurements) + np.sum(n_measurements))
-            )
-            self._results = np.hstack((self._results, results))
+            ) / (np.sum(self.n_measurements) + np.sum(n_measurements))
             self.n_measurements = np.hstack((self.n_measurements, n_measurements))
-            self.raw_results = np.vstack((self.raw_results, raw_results))
+            self.results = np.vstack((self.results, results))
         else:
             self.povm_matrix = povm_matrix
-            self.raw_results = np.array(raw_results)
-            self._results = results
-            self.n_measurements = np.array(n_measurements)
+            self.results = np.asarray(results)
+            self.n_measurements = np.asarray(n_measurements)
+
+    @property
+    def flat_results(self):
+        return self.results.flatten()
 
     @property
     def results(self):
         return self._results
 
     @results.setter
-    def results(self, data):
-        self._results = data
-        self.raw_results = data.reshape(self.povm_matrix.shape[:-1])
+    def results(self, results):
+        self._results = results
+        self.n_measurements = results.sum(-1)
 
     def point_estimate(self, method="lin", physical=True, init="lin", max_iter=100, tol=1e-3):
         """Reconstruct a density matrix from the data obtained in the experiment
@@ -190,12 +190,12 @@ class StateTomograph:
 
     def _point_estimate_lin(self, physical):
         """Point estimate based on linear inversion algorithm"""
-        frequencies = self._results / self._results.sum()
+        frequencies = self.flat_results / self.flat_results.sum()
         povm_matrix = np.reshape(
             self.povm_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
             (-1, self.povm_matrix.shape[-1]),
         )
-        bloch_vec = _left_inv(povm_matrix) @ frequencies / (2 ** self.state.n_qubits)
+        bloch_vec = _left_inv(povm_matrix) @ frequencies / (2**self.state.n_qubits)
         rho = Qobj(bloch_vec)
         if physical:
             rho = _make_feasible(rho)
@@ -223,8 +223,8 @@ class StateTomograph:
             self.povm_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
             (-1, self.povm_matrix.shape[-1]),
         )
-        probas = povm_matrix @ rho.bloch * (2 ** self.state.n_qubits)
-        frequencies = self._results / sum(self.n_measurements)
+        probas = povm_matrix @ rho.bloch * (2**self.state.n_qubits)
+        frequencies = self.flat_results / sum(self.n_measurements)
         log_likelihood = np.sum(frequencies * np.log(probas + EPS))
         return -log_likelihood
 

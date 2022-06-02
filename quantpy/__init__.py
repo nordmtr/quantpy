@@ -12,9 +12,12 @@ from .tomography.interval import (
     HolderInterval,
     MHMCProcessInterval,
     MHMCStateInterval,
+    MomentFidelityProcessInterval,
+    MomentFidelityStateInterval,
     MomentInterval,
+    PolytopeProcessInterval,
+    PolytopeStateInterval,
     SugiyamaInterval,
-    WangInterval,
 )
 from .tomography.process import ProcessTomograph
 from .tomography.state import StateTomograph
