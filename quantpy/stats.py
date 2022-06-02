@@ -44,7 +44,7 @@ def l2_second_moment(freq, n_trials, weights):
         - np.einsum("aibj,akbj,ai,bj,ak->", weights, weights, freq, freq, freq)
         - np.einsum("aibj,aibl,ai,bj,bl->", weights, weights, freq, freq, freq)
         + np.einsum("aibj,aibj,ai,bj->", weights, weights, freq, freq)
-    ) / n_trials ** 2
+    ) / n_trials**2
 
 
 def make_identity_weights(freq):

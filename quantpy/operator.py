@@ -122,15 +122,12 @@ Id = Operator(_SIGMA_I)
 X = Operator(_SIGMA_X)
 Y = Operator(_SIGMA_Y)
 Z = Operator(_SIGMA_Z)
-H = (
-    Operator(
-        [
-            [1, 1],
-            [1, -1],
-        ]
-    )
-    / np.sqrt(2)
-)
+H = Operator(
+    [
+        [1, 1],
+        [1, -1],
+    ]
+) / np.sqrt(2)
 T = PHASE(np.pi / 4)
 S = PHASE(np.pi / 2)
 
@@ -181,17 +178,14 @@ ISWAP = Operator(
     ]
 )
 
-MS = (
-    Operator(
-        [
-            [1, 0, 0, 1j],
-            [0, 1, -1j, 0],
-            [0, -1j, 1, 0],
-            [1j, 0, 0, 1],
-        ]
-    )
-    / np.sqrt(2)
-)
+MS = Operator(
+    [
+        [1, 0, 0, 1j],
+        [0, 1, -1j, 0],
+        [0, -1j, 1, 0],
+        [1j, 0, 0, 1],
+    ]
+) / np.sqrt(2)
 
 
 Toffoli = Operator(
