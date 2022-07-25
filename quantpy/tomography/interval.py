@@ -139,8 +139,8 @@ class MomentFidelityStateInterval(MomentInterval):
         c = matrix(self.target_state.bloch)
         A = matrix([1.0] + [0] * (dim**2 - 1), size=(1, dim**2))
         b = matrix([1 / dim])
-        G = [matrix(np.vstack((np.zeros(dim**2), -np.eye(dim**2))))]
-        h = [matrix([0] + list(-self.tmg.reconstructed_state.bloch))]
+        G = [matrix(np.vstack((np.zeros(dim**2), np.eye(dim**2))))]
+        h = [matrix([0] + list(self.tmg.reconstructed_state.bloch))]
         alpha = np.sqrt(2 / dim)
 
         dist_min = []
@@ -185,6 +185,7 @@ class MomentFidelityProcessInterval(MomentInterval):
 
         dim_in = dim_out = 2**self.tmg.channel.n_qubits
         dim = dim_in * dim_out
+        # indices of the bloch vector where values are constant for all Choi matrices
         trivial_indices = list(range(0, dim**2, dim_out**2))
 
         conf_levels = np.concatenate((np.arange(1e-7, 0.8, 0.01), np.linspace(0.8, 1 - 1e-7, 200)))
@@ -194,8 +195,8 @@ class MomentFidelityProcessInterval(MomentInterval):
         c = matrix(self.target_process.choi.bloch)
         A = matrix(np.eye(dim**2)[trivial_indices])
         b = matrix([1 / dim_in] + [0] * (dim_in**2 - 1))
-        G = [matrix(np.vstack((np.zeros(dim**2), -np.eye(dim**2))))]
-        h = [matrix([0] + list(-self.tmg.reconstructed_channel.choi.bloch))]
+        G = [matrix(np.vstack((np.zeros(dim**2), np.eye(dim**2))))]
+        h = [matrix([0] + list(self.tmg.reconstructed_channel.choi.bloch))]
         alpha = np.sqrt(2 / dim)
 
         dist_min = []
