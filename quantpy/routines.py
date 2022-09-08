@@ -46,7 +46,7 @@ def join_gates(gates):
 
 def _out_ptrace_oper(n_qubits):
     """Construct a partial trace operator over output space for a bipartite system"""
-    identity = np.eye(2**n_qubits)
+    identity = np.eye(2 ** n_qubits)
     return np.sum([np.kron(identity, np.kron(k_vec, np.kron(identity, k_vec))) for k_vec in identity], axis=0)
 
 
