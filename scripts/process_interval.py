@@ -24,6 +24,12 @@ def main(args=None):
         help="path to output file",
         required=False,
     )
+    parser.add_argument(
+        "--no-ci",
+        default=False,
+        action="store_true",
+        help="removes confidence intervals",
+    )
     args = parser.parse_args(args)
 
     with open(args.input, "r") as fp:
@@ -42,19 +48,20 @@ def main(args=None):
     tmg.results = results
     output["process"] = list(tmg.point_estimate(cptp=False).choi.bloch)
 
-    if "target_process" in input_data:
-        target_process = qp.Channel(qp.Qobj(input_data["target_process"]))
-        interval = qp.MomentFidelityProcessInterval(tmg, target_process=target_process)
-        interval.setup()
-        (fidelity_min, fidelity_max), _ = interval(input_data["conf_levels"])
-        output["fidelity_min"] = list(np.maximum(fidelity_min, 0))
-        output["fidelity_max"] = list(np.minimum(fidelity_max, 1))
-    else:
-        interval = qp.MomentInterval(tmg)
-        interval.setup()
+    if not args.no_ci:
+        if "target_process" in input_data:
+            target_process = qp.Channel(qp.Qobj(input_data["target_process"]))
+            interval = qp.MomentFidelityProcessInterval(tmg, target_process=target_process)
+            interval.setup()
+            (fidelity_min, fidelity_max), _ = interval(input_data["conf_levels"])
+            output["fidelity_min"] = list(np.maximum(fidelity_min, 0))
+            output["fidelity_max"] = list(np.minimum(fidelity_max, 1))
+        else:
+            interval = qp.MomentInterval(tmg)
+            interval.setup()
 
-    dist = interval.cl_to_dist(input_data["conf_levels"])
-    output["hs_radius"] = list(dist)
+        dist = interval.cl_to_dist(input_data["conf_levels"])
+        output["hs_radius"] = list(dist)
     if args.output:
         with open(args.output, "w") as fp:
             json.dump(output, fp, indent=4)
