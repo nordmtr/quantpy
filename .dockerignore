@@ -1,0 +1,8 @@
+*
+!quantpy
+!tests
+!scripts
+!pyproject.toml
+!poetry.lock
+!.pre-commit-config.yaml
+!Dockerfile

@@ -23,7 +23,6 @@ isort = "^5.10.1"
 pre-commit = "^2.19.0"
 jupyter-contrib-nbextensions = "^0.5.1"
 autoflake = "^1.4"
-mypy = "^0.960"
 joblib = "^1.2.0"
 
 [tool.black]
@@ -50,8 +49,6 @@ line_length = 120
 src_paths = ["quantpy"]
 skip = "submodules"
 
-[tool.mypy]
-plugins="numpy.typing.mypy_plugin"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
