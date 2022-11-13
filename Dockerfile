@@ -21,6 +21,7 @@ COPY pyproject.toml poetry.lock  ./
 RUN mkdir quantpy && \
     touch quantpy/__init__.py && \
     poetry config virtualenvs.create false && \
+    poetry config installer.parallel true && \
     poetry install --no-interaction --no-ansi
 
 # Copy code

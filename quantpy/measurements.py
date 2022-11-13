@@ -76,7 +76,7 @@ def generate_measurement_matrix(povm="proj", n_qubits=1):
     elif isinstance(povm, np.ndarray):
         if povm.shape[-1] == 4:
             povm_1 = povm
-        elif povm.shape[-1] == 4 ** n_qubits:
+        elif povm.shape[-1] == 4**n_qubits:
             if len(povm.shape) == 2:
                 povm = povm[None, :, :]
             povm_matrix = povm

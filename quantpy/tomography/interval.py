@@ -69,14 +69,14 @@ class MomentInterval(ConfidenceInterval):
 
     def setup(self):
         if self.mode == Mode.STATE:
-            dim = 2 ** self.tmg.state.n_qubits
+            dim = 2**self.tmg.state.n_qubits
             n_measurements = self.tmg.n_measurements
             frequencies = self.tmg.results / self.tmg.n_measurements[:, None]
             # reshape, invert, reshape back
             inv_matrix = _left_inv(rearrange(self.tmg.povm_matrix, "m p d -> (m p) d")) / dim
             inv_matrix = rearrange(inv_matrix, "d (m p) -> d m p", m=frequencies.shape[0])
         else:
-            dim = 4 ** self.tmg.channel.n_qubits
+            dim = 4**self.tmg.channel.n_qubits
             n_measurements = self.tmg.tomographs[0].n_measurements
             frequencies = np.vstack([tmg.results / n_measurements[:, None] for tmg in self.tmg.tomographs])
             povm_matrix = rearrange(self.tmg.tomographs[0].povm_matrix, "m p d -> (m p) d")
@@ -130,14 +130,14 @@ class MomentFidelityStateInterval(MomentInterval):
 
         if self.target_state is None:
             self.target_state = self.tmg.reconstructed_state
-        dim = 2 ** self.tmg.state.n_qubits
+        dim = 2**self.tmg.state.n_qubits
         conf_levels = np.concatenate((np.arange(1e-7, 0.8, 0.01), np.linspace(0.8, 1 - 1e-7, 200)))
         dist_list = self.cl_to_dist(conf_levels)
 
         c = matrix(self.target_state.bloch)
-        A = matrix([1.0] + [0] * (dim ** 2 - 1), size=(1, dim ** 2))
+        A = matrix([1.0] + [0] * (dim**2 - 1), size=(1, dim**2))
         b = matrix([1 / dim])
-        G = [matrix(np.vstack((np.zeros(dim ** 2), np.eye(dim ** 2))))]
+        G = [matrix(np.vstack((np.zeros(dim**2), np.eye(dim**2))))]
         h = [matrix([0] + list(self.tmg.reconstructed_state.bloch))]
         alpha = np.sqrt(2 / dim)
 
@@ -181,19 +181,19 @@ class MomentFidelityProcessInterval(MomentInterval):
         if self.target_process is None:
             self.target_process = self.tmg.reconstructed_channel
 
-        dim_in = dim_out = 2 ** self.tmg.channel.n_qubits
+        dim_in = dim_out = 2**self.tmg.channel.n_qubits
         dim = dim_in * dim_out
         # indices of the bloch vector where values are constant for all Choi matrices
-        trivial_indices = list(range(0, dim ** 2, dim_out ** 2))
+        trivial_indices = list(range(0, dim**2, dim_out**2))
 
         conf_levels = np.concatenate((np.arange(1e-7, 0.8, 0.01), np.linspace(0.8, 1 - 1e-7, 200)))
         dist_list = self.cl_to_dist(conf_levels)
 
         # TODO: double-check the correctness
         c = matrix(self.target_process.choi.bloch)
-        A = matrix(np.eye(dim ** 2)[trivial_indices])
-        b = matrix([1 / dim_in] + [0] * (dim_in ** 2 - 1))
-        G = [matrix(np.vstack((np.zeros(dim ** 2), np.eye(dim ** 2))))]
+        A = matrix(np.eye(dim**2)[trivial_indices])
+        b = matrix([1 / dim_in] + [0] * (dim_in**2 - 1))
+        G = [matrix(np.vstack((np.zeros(dim**2), np.eye(dim**2))))]
         h = [matrix([0] + list(self.tmg.reconstructed_channel.choi.bloch))]
         alpha = np.sqrt(2 / dim)
 
@@ -235,7 +235,7 @@ class SugiyamaInterval(ConfidenceInterval):
     def setup(self):
         if self.mode == Mode.CHANNEL:
             raise NotImplementedError("Sugiyama interval works only for state tomography")
-        dim = 2 ** self.tmg.state.n_qubits
+        dim = 2**self.tmg.state.n_qubits
         dist = np.linspace(0, 1, self.n_points)
         povm_matrix = np.reshape(self.tmg.povm_matrix, (-1, self.tmg.povm_matrix.shape[-1])) * dim
         povm_matrix /= np.sqrt(2 * dim)
@@ -251,11 +251,11 @@ class SugiyamaInterval(ConfidenceInterval):
             + self.EPS
         )
         if self.tmg.dst == hs_dst:
-            b = 8 / (dim ** 2 - 1)
+            b = 8 / (dim**2 - 1)
         elif self.tmg.dst == trace_dst:
-            b = 16 / (dim ** 2 - 1) / dim
+            b = 16 / (dim**2 - 1) / dim
         elif self.tmg.dst == if_dst:
-            b = 4 / (dim ** 2 - 1) / dim
+            b = 4 / (dim**2 - 1) / dim
         else:
             raise NotImplementedError("Unsupported distance")
         conf_levels = 1 - 2 * np.sum(
@@ -295,7 +295,7 @@ class PolytopeStateInterval(ConfidenceInterval):
         if self.target_state is None:
             self.target_state = self.tmg.state
 
-        dim = 2 ** self.tmg.state.n_qubits
+        dim = 2**self.tmg.state.n_qubits
         frequencies = np.clip(self.tmg.results / self.tmg.n_measurements[:, None], self.EPS, 1 - self.EPS)
 
         povm_matrix = (
@@ -360,9 +360,9 @@ class PolytopeProcessInterval(ConfidenceInterval):
 
     def setup(self):
         channel = self.tmg.channel
-        dim_in = dim_out = 2 ** channel.n_qubits
+        dim_in = dim_out = 2**channel.n_qubits
         dim = dim_in * dim_out
-        bloch_indices = [i for i in range(dim ** 2) if i % (dim_out ** 2) != 0]
+        bloch_indices = [i for i in range(dim**2) if i % (dim_out**2) != 0]
 
         if self.target_channel is None:
             self.target_channel = channel
@@ -740,7 +740,7 @@ class MHMCStateInterval(ConfidenceInterval):
         elif self.state is None:
             self.state = self.tmg.point_estimate(method="mle", physical=True)
 
-        dim = 4 ** self.tmg.state.n_qubits
+        dim = 4**self.tmg.state.n_qubits
         if not (self.warm_start and hasattr(self, "chain")):
             x_init = _matrix_to_real_tril_vec(self.state.matrix)
             self.chain = MHMC(
@@ -828,7 +828,7 @@ class MHMCProcessInterval(ConfidenceInterval):
                 states_init=self.states_init,
             )
 
-        dim = 16 ** self.tmg.channel.n_qubits
+        dim = 16**self.tmg.channel.n_qubits
         if not (self.warm_start and hasattr(self, "chain")):
             x_init = _mat2vec(self.channel.choi.matrix)
             self.chain = MHMC(
