@@ -77,12 +77,12 @@ class ProcessTomograph:
             self.dst = dst
         self.input_states = input_states
         self.input_basis = Basis(_generate_input_states(input_states, channel.n_qubits))
-        if self.input_basis.dim != 4 ** channel.n_qubits:
+        if self.input_basis.dim != 4**channel.n_qubits:
             raise ValueError("Input states do not constitute a basis")
         self._decomposed_single_entries = np.array(
             [
                 self.input_basis.decompose(Qobj(single_entry))
-                for single_entry in generate_single_entries(2 ** channel.n_qubits)
+                for single_entry in generate_single_entries(2**channel.n_qubits)
             ]
         )
         self._ptrace_oper = _out_ptrace_oper(channel.n_qubits)
@@ -191,7 +191,7 @@ class ProcessTomograph:
         -------
         reconstructed_channel : Channel
         """
-        dim = 2 ** self.channel.n_qubits
+        dim = 2**self.channel.n_qubits
         self._lifp_oper = []
         self._bloch_oper = []
         povm_matrix = np.reshape(
@@ -206,7 +206,7 @@ class ProcessTomograph:
             self._bloch_oper.append(np.kron(inp_state.T.bloch, povm_bloch))
 
         self._lifp_oper = np.array(self._lifp_oper)
-        self._bloch_oper = np.array(self._bloch_oper) * dim ** 2
+        self._bloch_oper = np.array(self._bloch_oper) * dim**2
         self._lifp_oper_inv = _left_inv(self._lifp_oper)
         self._bloch_oper_inv = _left_inv(self._bloch_oper)
 
@@ -258,7 +258,7 @@ class ProcessTomograph:
 
     def tp_projection(self, channel, vectorized=False):
         """Projection of a channel onto TP space"""
-        dim = 2 ** channel.n_qubits
+        dim = 2**channel.n_qubits
         choi_vec = _mat2vec(channel.choi.matrix)
         tp_choi_vec = (
             choi_vec + (self._ptrace_oper.T.conj() @ _mat2vec(np.eye(dim)) - self._ptrace_dag_ptrace @ choi_vec) / dim
@@ -290,7 +290,7 @@ class ProcessTomograph:
 
     def _point_estimate_pgdb(self, n_iter, tol=1e-10):
         choi_vec = _mat2vec(fully_mixed(self.channel.n_qubits * 2).matrix)
-        mu = 1.5 / (4 ** self.channel.n_qubits)
+        mu = 1.5 / (4**self.channel.n_qubits)
         gamma = 0.3
         for i in range(n_iter):
             probas = self._lifp_oper @ choi_vec

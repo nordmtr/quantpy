@@ -106,7 +106,7 @@ class StateTomograph:
         elif len(n_measurements) != number_of_povms:
             raise ValueError("Wrong length for argument `n_measurements`")
 
-        probas = np.einsum("ijk,k->ij", povm_matrix, self.state.bloch) * (2 ** self.state.n_qubits)
+        probas = np.einsum("ijk,k->ij", povm_matrix, self.state.bloch) * (2**self.state.n_qubits)
         probas = np.clip(probas, 0, 1)
         results = [
             np.random.multinomial(n_measurements_for_povm, probas_for_povm)
@@ -114,15 +114,12 @@ class StateTomograph:
         ]
 
         if warm_start:
-            self.povm_matrix = (
-                np.vstack(
-                    (
-                        self.povm_matrix * np.sum(self.n_measurements),
-                        povm_matrix * np.sum(n_measurements),
-                    )
+            self.povm_matrix = np.vstack(
+                (
+                    self.povm_matrix * np.sum(self.n_measurements),
+                    povm_matrix * np.sum(n_measurements),
                 )
-                / (np.sum(self.n_measurements) + np.sum(n_measurements))
-            )
+            ) / (np.sum(self.n_measurements) + np.sum(n_measurements))
             self.n_measurements = np.hstack((self.n_measurements, n_measurements))
             self.results = np.vstack((self.results, results))
         else:
@@ -198,7 +195,7 @@ class StateTomograph:
             self.povm_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
             (-1, self.povm_matrix.shape[-1]),
         )
-        bloch_vec = _left_inv(povm_matrix) @ frequencies / (2 ** self.state.n_qubits)
+        bloch_vec = _left_inv(povm_matrix) @ frequencies / (2**self.state.n_qubits)
         rho = Qobj(bloch_vec)
         if physical:
             rho = _make_feasible(rho)
@@ -226,7 +223,7 @@ class StateTomograph:
             self.povm_matrix * self.n_measurements[:, None, None] / np.sum(self.n_measurements),
             (-1, self.povm_matrix.shape[-1]),
         )
-        probas = povm_matrix @ rho.bloch * (2 ** self.state.n_qubits)
+        probas = povm_matrix @ rho.bloch * (2**self.state.n_qubits)
         frequencies = self.flat_results / sum(self.n_measurements)
         log_likelihood = np.sum(frequencies * np.log(probas + EPS))
         return -log_likelihood

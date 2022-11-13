@@ -9,7 +9,7 @@ from quantpy.tomography.polytopes.utils import count_delta
 def test_qst(state, conf_levels, n_measurements=1000, n_trials=1000):
     results = np.zeros(len(conf_levels))
 
-    dim = 2 ** state.n_qubits
+    dim = 2**state.n_qubits
     tmg = StateTomograph(state)
     tmg.experiment(n_measurements)
     EPS = 1e-15
@@ -40,8 +40,8 @@ def test_qst(state, conf_levels, n_measurements=1000, n_trials=1000):
 def test_qpt(channel, conf_levels, n_measurements=1000, n_trials=1000, input_states="sic"):
     results = np.zeros(len(conf_levels))
 
-    dim = 4 ** channel.n_qubits
-    bloch_indices = [i for i in range(dim ** 2) if i % dim != 0]
+    dim = 4**channel.n_qubits
+    bloch_indices = [i for i in range(dim**2) if i % dim != 0]
     tmg = ProcessTomograph(channel, input_states=input_states)
     tmg.experiment(n_measurements)
     EPS = 1e-15
