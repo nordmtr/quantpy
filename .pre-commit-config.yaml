@@ -36,8 +36,3 @@ repos:
         entry: flake8
         language: python
         pass_filenames: false
-#    -   id: mypy
-#        name: mypy
-#        entry: mypy --no-site-packages
-#        language: system
-#        pass_filenames: false
